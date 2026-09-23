@@ -145,14 +145,23 @@ namespace FC.Services
                 return;
             }
 
-            // 第一遍：清直接子项（保留根目录）
+            // 第一遍：清直接子项（保留根目录）。子目录一律"单遍尽力"——快删失败转慢删逐条，
+            // 但绝不走 DeleteTree 的 5 轮重试（清理场景对 3GB 大目录死磕会卡到你怀疑人生）。
             RemoveDirectChildren(dir, log, ct, failedPaths);
 
-            // 第二遍：仍有直接子项 → 多为被占用（如 Temp 里的锁文件/子目录），
-            // 对每个残留子项走 DeleteTree 的重试战术（重命名绕锁 + 轮询 3s）
+            // 第二遍：仍有直接子项 → 多为进程占用刚释放或正占用。短暂等待后重试一轮，
+            // 仍失败就交给 failedPaths 上报（占用者释放后可再点一次清理）。
             if (HasAnyChild(dir))
             {
-                RunLog(log, "第一遍未清空，对残留子项执行重试战术…");
+                RunLog(log, "部分内容仍被占用，稍候重试一轮…");
+                try
+                {
+                    Task.Delay(1500, ct).GetAwaiter().GetResult();
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
                 RemoveDirectChildren(dir, log, ct, failedPaths);
             }
         }
@@ -203,8 +212,51 @@ namespace FC.Services
                 }
                 else
                 {
-                    DeleteTree(d.FullPath, log, ct, failedPaths);
+                    // 单遍尽力删除整棵子树：快删 → 慢删逐条（不重试、不重复 icacls）
+                    TryDeleteDirTreeOnce(d.FullPath, log, ct, failedPaths);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 单遍尽力删除一棵子树（清理场景专用，无 5 轮重试）：
+        /// 快路径 Directory.Delete(true) → 失败转慢路径（逐条删内容再删自身）。
+        /// 被占用/无权限的残留项进 failedPaths 上报，不阻塞整体清理。
+        /// </summary>
+        private static void TryDeleteDirTreeOnce(
+            string path, IProgress<string> log, CancellationToken ct, List<string> failedPaths)
+        {
+            try
+            {
+                Directory.Delete(path, true);
+                return;
+            }
+            catch (Exception)
+            {
+            }
+            try
+            {
+                string lp = "\\\\?\\" + path;
+                if (Directory.Exists(lp))
+                {
+                    Directory.Delete(lp, true);
+                    if (!Directory.Exists(path))
+                    {
+                        return;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            // 慢路径：逐条删内容（FindFirstFileEx），本身带文件数进度日志与 60s/目录上限
+            var sw = Stopwatch.StartNew();
+            long deleted = 0;
+            DeleteChildren(path, log, ct, failedPaths, sw, ref deleted);
+            if (Directory.Exists(path))
+            {
+                TryDeleteDir(path, failedPaths, log);
             }
         }
 

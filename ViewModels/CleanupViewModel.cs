@@ -27,6 +27,7 @@ namespace FC.ViewModels
         private string _cleaningTitle;
         private int _cleaningStep;
         private int _cleaningTotal;
+        private int _cleaningDeleted;
         private bool _keepStatusAfterRefresh;
 
         public CleanupViewModel(AppServices services)
@@ -438,6 +439,7 @@ namespace FC.ViewModels
             IsCleaning = true;
             _cleaningTotal = selected.Count;
             _cleaningStep = 0;
+            _cleaningDeleted = 0;
             _cleaningTitle = null;
             _keepStatusAfterRefresh = false;
             Logs.Clear();
@@ -511,6 +513,16 @@ namespace FC.ViewModels
         /// <summary>清理过程中解析日志行，实时更新"正在清理 x/y：项目名"提示。</summary>
         private void OnCleanProgress(string line)
         {
+            // 删除计数行："…已删除 N 项" → 更新带删除计数的状态，用户能看到确实在推进
+            int deleted = TryParseDeletedCount(line);
+            if (deleted >= 0)
+            {
+                _cleaningDeleted = deleted;
+                UpdateCleaningStatus();
+                AppendLog(line);
+                return;
+            }
+
             string title;
             bool done;
             if (TryParseCleanProgress(line, out title, out done))
@@ -523,20 +535,53 @@ namespace FC.ViewModels
                 {
                     _cleaningTitle = title;
                 }
-                if (_cleaningTitle != null)
-                {
-                    StatusText = string.Format("正在清理… {0}/{1}：{2}", _cleaningStep, _cleaningTotal, _cleaningTitle);
-                }
-                else
-                {
-                    StatusText = string.Format("正在清理… {0}/{1}", _cleaningStep, _cleaningTotal);
-                }
+                UpdateCleaningStatus();
             }
             AppendLog(line);
         }
 
+        private void UpdateCleaningStatus()
+        {
+            string tail = _cleaningDeleted > 0 ? string.Format("，已删除 {0} 项", _cleaningDeleted) : "";
+            if (_cleaningTitle != null)
+            {
+                StatusText = string.Format("正在清理… {0}/{1}：{2}{3}", _cleaningStep, _cleaningTotal, _cleaningTitle, tail);
+            }
+            else
+            {
+                StatusText = string.Format("正在清理… {0}/{1}{2}", _cleaningStep, _cleaningTotal, tail);
+            }
+        }
+
+        /// <summary>从"…已删除 N 项"日志行提取 N（非删除计数行返回 -1）。</summary>
+        public static int TryParseDeletedCount(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+            {
+                return -1;
+            }
+            int p = line.IndexOf(DeletedMarker, StringComparison.Ordinal);
+            if (p < 0)
+            {
+                return -1;
+            }
+            int s = p + DeletedMarker.Length;
+            int e = s;
+            while (e < line.Length && char.IsDigit(line[e]))
+            {
+                e++;
+            }
+            if (e == s)
+            {
+                return -1;
+            }
+            int v;
+            return int.TryParse(line.Substring(s, e - s), out v) ? v : -1;
+        }
+
         internal const string StartPrefix = "=== ";
         internal const string DonePrefix = "该项清理完成";
+        internal const string DeletedMarker = "已删除 ";
 
         /// <summary>
         /// 由日志行识别清理进度事件（纯逻辑，便于单测）：
