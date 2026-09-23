@@ -128,6 +128,98 @@ namespace FC.Services
             }
         }
 
+        /// <summary>
+        /// 清空目录的内容但保留目录本身（用于清理缓存/临时目录）。复用删除树全部战术：
+        /// 先删直接子项（文件逐个、目录整棵），若有残留目录再整体走 DeleteTree（可能重命名绕锁）。
+        /// </summary>
+        public static void EmptyDirectoryContents(
+            string dir, IProgress<string> log, CancellationToken ct, List<string> failedPaths)
+        {
+            if (string.IsNullOrEmpty(dir) || failedPaths == null)
+            {
+                return;
+            }
+            dir = dir.TrimEnd('\\');
+            if (!Directory.Exists(dir))
+            {
+                return;
+            }
+
+            // 第一遍：清直接子项（保留根目录）
+            RemoveDirectChildren(dir, log, ct, failedPaths);
+
+            // 第二遍：仍有直接子项 → 多为被占用（如 Temp 里的锁文件/子目录），
+            // 对每个残留子项走 DeleteTree 的重试战术（重命名绕锁 + 轮询 3s）
+            if (HasAnyChild(dir))
+            {
+                RunLog(log, "第一遍未清空，对残留子项执行重试战术…");
+                RemoveDirectChildren(dir, log, ct, failedPaths);
+            }
+        }
+
+        /// <summary>删除单文件（清只读/系统位后删除，复用失败收集）。</summary>
+        public static void DeleteFile(string path, List<string> failedPaths)
+        {
+            if (string.IsNullOrEmpty(path) || failedPaths == null)
+            {
+                return;
+            }
+            if (Directory.Exists(path))
+            {
+                failedPaths.Add(path);
+                return;
+            }
+            TryDeleteFile(path, failedPaths);
+        }
+
+        private static void RemoveDirectChildren(
+            string dir, IProgress<string> log, CancellationToken ct, List<string> failedPaths)
+        {
+            var dirs = new List<FastDirectory.DirInfoData>();
+            var files = new List<FastDirectory.FileInfoData>();
+            try
+            {
+                FastDirectory.List(dir, dirs, files);
+            }
+            catch (Exception ex)
+            {
+                failedPaths.Add(dir);
+                RunLog(log, "枚举失败：" + dir + "（" + ex.GetType().Name + "：" + ex.Message + "）");
+                return;
+            }
+
+            foreach (var f in files)
+            {
+                ct.ThrowIfCancellationRequested();
+                TryDeleteFile(f.FullPath, failedPaths);
+            }
+            foreach (var d in dirs)
+            {
+                ct.ThrowIfCancellationRequested();
+                // junction 子项只删链接本身
+                if (d.IsReparse)
+                {
+                    TryRemoveLink(d.FullPath, failedPaths);
+                }
+                else
+                {
+                    DeleteTree(d.FullPath, log, ct, failedPaths);
+                }
+            }
+        }
+
+        private static bool HasAnyChild(string dir)
+        {
+            try
+            {
+                return Directory.EnumerateFileSystemEntries(dir).Any();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         /// <summary>单次尽全力的删除尝试：快路径 → 慢路径。</summary>
         private static void TryDeleteInPlace(
             string target, IProgress<string> log, CancellationToken ct, List<string> failedPaths)

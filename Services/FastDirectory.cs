@@ -46,6 +46,8 @@ namespace FC.Services
         private const uint FIND_FIRST_EX_LARGE_FETCH = 0x0000002;
         private const uint FILE_ATTRIBUTE_DIRECTORY = 0x10;
         private const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
+        private const uint FILE_ATTRIBUTE_HIDDEN = 0x2;
+        private const uint FILE_ATTRIBUTE_SYSTEM = 0x4;
         private const uint INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF;
         private const int ERROR_ACCESS_DENIED = 5;
         private const int ERROR_NO_MORE_FILES = 18;
@@ -73,13 +75,16 @@ namespace FC.Services
             public DateTime LastWriteTime;
         }
 
-        /// <summary>文件项（文件名 + 逻辑长度 + 修改时间）</summary>
+        /// <summary>文件项（文件名 + 逻辑长度 + 修改时间 + 隐藏/系统标记）</summary>
         public struct FileInfoData
         {
             public string FullPath;
             public string Name;
             public long Length;
             public DateTime LastWriteTime;
+
+            /// <summary>是否为隐藏/系统文件（由枚举到的属性一次判定，免二次属性查询）</summary>
+            public bool IsHiddenOrSystem;
         }
 
         /// <summary>
@@ -131,7 +136,8 @@ namespace FC.Services
                             FullPath = full,
                             Name = fd.cFileName,
                             Length = size,
-                            LastWriteTime = lastWrite
+                            LastWriteTime = lastWrite,
+                            IsHiddenOrSystem = (fd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0
                         });
                     }
                 }

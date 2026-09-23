@@ -1,0 +1,39 @@
+<Window x:Class="FC.Views.LargeFilesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:FC.ViewModels"
+        Title="FC - 最大文件（全局 Top）" Height="560" Width="920"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Text="{Binding StatusText}"
+                   Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+        <DataGrid x:Name="Grid"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  ItemsSource="{Binding Rows}" SelectionMode="Single"
+                  Sorting="Grid_Sorting">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridRow">
+                    <EventSetter Event="MouseDoubleClick" Handler="Row_DoubleClick" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource RowHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource RowSelectedBrush}" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="1.6*" />
+                <DataGridTextColumn Header="所在目录" Binding="{Binding DirectoryText}" Width="2.4*" />
+                <DataGridTextColumn Header="大小" Binding="{Binding SizeText}" Width="90" />
+                <DataGridTextColumn Header="修改时间" Binding="{Binding ModifiedText}" Width="110" />
+                <DataGridTextColumn Header="说明" Binding="{Binding TagText}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}"
+                   Text="双击行打开所在目录并选中该文件；右键可复制完整路径。" TextWrapping="Wrap" />
+    </DockPanel>
+</Window>

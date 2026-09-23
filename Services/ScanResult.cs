@@ -23,5 +23,14 @@ namespace FC.Services
         public long TotalBytes { get; set; }
 
         public long TotalFolders { get; set; }
+
+        /// <summary>全局最大的若干个文件（按大小降序，最多 LargeFileCount 个）</summary>
+        public List<FileEntry> LargeFiles { get; set; }
+
+        /// <summary>是否收集到完整的大文件清单（快速复用模式下未变目录不枚举文件，为 false）。</summary>
+        public bool LargeFilesComplete { get; set; }
+
+        /// <summary>按扩展名聚合的占用统计（按字节降序，最多 TypeStatCount 个）</summary>
+        public List<TypeStat> TypeStats { get; set; }
     }
 }

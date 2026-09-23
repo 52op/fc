@@ -61,6 +61,9 @@ namespace FC.ViewModels
             ExpandAllCommand = new RelayCommand(() => SetAllExpanded(true));
             CollapseAllCommand = new RelayCommand(() => SetAllExpanded(false));
             ThemeToggleCommand = new RelayCommand(ToggleTheme);
+            OpenCleanupCommand = new RelayCommand(OpenCleanup, () => !_isScanning);
+            ShowLargeFilesCommand = new RelayCommand(ShowLargeFiles, () => !_isScanning);
+            ShowTypeStatsCommand = new RelayCommand(ShowTypeStats, () => !_isScanning);
 
             // 扫描期每行进度条刷新（250ms 节流，避免每事件全量刷新）
             _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -259,6 +262,15 @@ namespace FC.ViewModels
 
         public RelayCommand ThemeToggleCommand { get; private set; }
 
+        public RelayCommand OpenCleanupCommand { get; private set; }
+
+        public RelayCommand ShowLargeFilesCommand { get; private set; }
+
+        public RelayCommand ShowTypeStatsCommand { get; private set; }
+
+        /// <summary>最近一次完整扫描的结果（大文件/类型统计数据源）</summary>
+        public ScanResult LastResult { get; private set; }
+
         /// <summary>启动初始化：只发现盘符并选中默认，不自动扫描。</summary>
         public async Task InitializeAsync()
         {
@@ -390,6 +402,7 @@ namespace FC.ViewModels
             {
                 var progress = new Progress<ScanProgress>(OnScanProgress);
                 var result = await _services.Scanner.ScanAsync(target, progress, ct);
+                LastResult = result;
 
                 _progressTimer.Stop();
                 TreeNodeViewModel.SizesComplete = true;
@@ -414,11 +427,13 @@ namespace FC.ViewModels
                 TreeNodeViewModel.SizesComplete = true;
                 Roots.Clear();
                 _rootNode = null;
+                LastResult = null;
                 StatusText = "扫描已取消。";
             }
             catch (Exception ex)
             {
                 _progressTimer.Stop();
+                LastResult = null;
                 StatusText = "扫描失败：" + ex.Message;
             }
             finally
@@ -674,12 +689,52 @@ namespace FC.ViewModels
             win.ShowDialog();
         }
 
+        /// <summary>清理建议窗口（不依赖扫描结果，随时可开）。</summary>
+        private void OpenCleanup()
+        {
+            var win = new CleanupWindow(new CleanupViewModel(_services));
+            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+            win.ShowDialog();
+        }
+
+        /// <summary>全局最大文件窗口（数据来自最近一次完整扫描）。</summary>
+        private void ShowLargeFiles()
+        {
+            if (LastResult == null)
+            {
+                _services.Dialogs.ShowError("还没有数据", "请先扫描一个盘符/目录，再查看“最大文件”。");
+                return;
+            }
+            var vm = new LargeFilesViewModel(LastResult.LargeFiles, LastResult.LargeFilesComplete);
+            var win = new LargeFilesWindow(vm);
+            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+            win.ShowDialog();
+        }
+
+        /// <summary>类型统计窗口（数据来自最近一次完整扫描）。</summary>
+        private void ShowTypeStats()
+        {
+            if (LastResult == null)
+            {
+                _services.Dialogs.ShowError("还没有数据", "请先扫描一个盘符/目录，再查看“类型统计”。");
+                return;
+            }
+            long total = LastResult.RootNode != null ? LastResult.RootNode.TotalSize : 0;
+            var vm = new TypeStatsViewModel(LastResult.TypeStats, total);
+            var win = new TypeStatsWindow(vm);
+            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+            win.ShowDialog();
+        }
+
         private void RaiseCommands()
         {
             ScanCommand.RaiseCanExecuteChanged();
             SelectFolderCommand.RaiseCanExecuteChanged();
             CancelScanCommand.RaiseCanExecuteChanged();
             ShowHistoryCommand.RaiseCanExecuteChanged();
+            OpenCleanupCommand.RaiseCanExecuteChanged();
+            ShowLargeFilesCommand.RaiseCanExecuteChanged();
+            ShowTypeStatsCommand.RaiseCanExecuteChanged();
         }
     }
 }

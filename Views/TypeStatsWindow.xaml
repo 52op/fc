@@ -1,0 +1,47 @@
+<Window x:Class="FC.Views.TypeStatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FC - 文件类型统计" Height="520" Width="700"
+        WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <Style x:Key="BarCell" TargetType="Grid">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Text="{Binding StatusText}"
+                   Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+        <DataGrid x:Name="Grid"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  ItemsSource="{Binding Rows}" SelectionMode="Single"
+                  MouseDoubleClick="Grid_MouseDoubleClick">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="扩展名" Binding="{Binding ExtensionText}" Width="1.2*" />
+                <DataGridTextColumn Header="占用" Binding="{Binding BytesText}" Width="110" />
+                <DataGridTemplateColumn Header="占比" Width="2*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar Grid.Column="0" Height="8"
+                                             Value="{Binding Percent}"
+                                             Maximum="100" Foreground="{DynamicResource AccentBrush}"
+                                             Background="{DynamicResource RowHoverBrush}" />
+                                <TextBlock Grid.Column="1" Margin="8,0,0,0"
+                                           Text="{Binding Percent, StringFormat={}{0:0.0}%}"
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="文件数" Binding="{Binding CountText}" Width="90" />
+            </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}"
+                   Text="按扩展名聚合最近一次扫描的占用。双击行复制扩展名。" TextWrapping="Wrap" />
+    </DockPanel>
+</Window>

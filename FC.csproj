@@ -64,11 +64,23 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Views\HistoryWindow.xaml">
+<Page Include="Views\HistoryWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\MigrateProgressWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\LargeFilesWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\TypeStatsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\CleanupWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -87,8 +99,17 @@
     <Compile Include="Views\HistoryWindow.xaml.cs">
       <DependentUpon>HistoryWindow.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Views\MigrateProgressWindow.xaml.cs">
+<Compile Include="Views\MigrateProgressWindow.xaml.cs">
       <DependentUpon>MigrateProgressWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\LargeFilesWindow.xaml.cs">
+      <DependentUpon>LargeFilesWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\TypeStatsWindow.xaml.cs">
+      <DependentUpon>TypeStatsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CleanupWindow.xaml.cs">
+      <DependentUpon>CleanupWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Controls\TreeListView.xaml.cs">
       <DependentUpon>TreeListView.xaml</DependentUpon>
@@ -97,6 +118,7 @@
   <ItemGroup>
     <Compile Include="Models\DiskNode.cs" />
     <Compile Include="Models\FileEntry.cs" />
+    <Compile Include="Models\TypeStat.cs" />
     <Compile Include="Models\MigrationException.cs" />
     <Compile Include="Models\MigrationRecord.cs" />
     <Compile Include="Models\LockerInfo.cs" />
@@ -118,8 +140,9 @@
     <Compile Include="Services\JunctionUtil.cs" />
     <Compile Include="Services\Scanner.cs" />
     <Compile Include="Services\SpecialFiles.cs" />
-    <Compile Include="Services\ScanCache.cs" />
+<Compile Include="Services\ScanCache.cs" />
     <Compile Include="Services\SkipList.cs" />
+    <Compile Include="Services\CleanupService.cs" />
     <Compile Include="Services\ScanResult.cs" />
     <Compile Include="Services\SystemIcons.cs" />
     <Compile Include="Services\TreeVerifier.cs" />
@@ -127,7 +150,10 @@
     <Compile Include="Services\WpfDialogService.cs" />
     <Compile Include="Services\XmlRecordStore.cs" />
     <Compile Include="Themes\ThemeManager.cs" />
-    <Compile Include="ViewModels\HistoryViewModel.cs" />
+<Compile Include="ViewModels\HistoryViewModel.cs" />
+    <Compile Include="ViewModels\LargeFilesViewModel.cs" />
+    <Compile Include="ViewModels\TypeStatsViewModel.cs" />
+    <Compile Include="ViewModels\CleanupViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\NodeRegistry.cs" />
     <Compile Include="ViewModels\RelayCommand.cs" />

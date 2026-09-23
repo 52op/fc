@@ -82,6 +82,25 @@
                     </StackPanel>
                 </Button>
                 <Separator />
+                <Button Command="{Binding OpenCleanupCommand}" ToolTip="一键清理建议（回收站/临时/缓存等，可真实执行清理）" AutomationProperties.Name="清理建议">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE74D;" Style="{StaticResource GlyphText}" />
+                        <TextBlock Text="清理建议" Margin="5,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding ShowLargeFilesCommand}" ToolTip="全局最大的文件（来自最近一次扫描）" AutomationProperties.Name="最大文件">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7B8;" Style="{StaticResource GlyphText}" />
+                        <TextBlock Text="最大文件" Margin="5,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding ShowTypeStatsCommand}" ToolTip="按文件类型聚合的占用统计" AutomationProperties.Name="类型统计">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8B4;" Style="{StaticResource GlyphText}" />
+                        <TextBlock Text="类型统计" Margin="5,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Separator />
                 <Button Content="{Binding ThemeToggleText}" Command="{Binding ThemeToggleCommand}" ToolTip="切换深色/浅色主题" AutomationProperties.Name="主题切换" />
             </ToolBar>
         </ToolBarTray>

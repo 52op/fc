@@ -25,6 +25,15 @@ namespace FC.Services
         // mtime 两侧统一用 GetLastWriteTimeUtc 采集，可严格相等比较（0 容差）
         private const long MtimeToleranceTicks = 0;
 
+        /// <summary>全局大文件列表保留条数（B4）</summary>
+        public const int LargeFileCount = 100;
+
+        /// <summary>类型统计保留条数（B5）</summary>
+        public const int TypeStatCount = 15;
+
+        /// <summary>大文件收集阈值：≥8MB 才入候选（避免为百万小文件造对象）</summary>
+        private const long BigFileThresholdBytes = 8L * 1024 * 1024;
+
         private static bool SameMtime(long cachedUtc, long liveUtc)
         {
             return cachedUtc == liveUtc;
@@ -164,7 +173,7 @@ namespace FC.Services
                     TotalFolders = CountDirNodes(root)
                 });
 
-                return new ScanResult
+                ScanResult result = new ScanResult
                 {
                     RootNode = root,
                     Children = root.Children,
@@ -174,6 +183,10 @@ namespace FC.Services
                     TotalFolders = CountDirNodes(root),
                     ReusedCount = Interlocked.Read(ref counters[3])
                 };
+                AssembleResultExtras(ctx, result);
+                // 快速复用模式下未变目录免枚举文件：大文件/类型统计不完整，仅作提示
+                result.LargeFilesComplete = result.ReusedCount == 0;
+                return result;
             }, ct);
         }
 
@@ -186,6 +199,12 @@ namespace FC.Services
             public Dictionary<string, ScanCache.CachedDir> CachedIndex;
             public CancellationToken Ct;
 
+            /// <summary>全局大文件候选收集（≥BigFileThresholdBytes 的文件，扫描后再排序取 Top）</summary>
+            public ConcurrentBag<FileEntry> BigFiles;
+
+            /// <summary>扩展名 → [文件数, 字节数]（B5 类型聚合，按需原子累加）</summary>
+            public ConcurrentDictionary<string, long[]> TypeAgg;
+
             public ScanContext(long[] counters, IProgress<ScanProgress> progress,
                 Dictionary<string, ScanCache.CachedDir> cachedIndex, CancellationToken ct)
             {
@@ -193,6 +212,8 @@ namespace FC.Services
                 Progress = progress;
                 CachedIndex = cachedIndex;
                 Ct = ct;
+                BigFiles = new ConcurrentBag<FileEntry>();
+                TypeAgg = new ConcurrentDictionary<string, long[]>(StringComparer.OrdinalIgnoreCase);
             }
         }
 
@@ -314,6 +335,22 @@ namespace FC.Services
                         size += f.Length;
                         alloc += VolumeInfo.RoundUpToCluster(f.Length, cluster);
                         fileCount++;
+
+                        // B4+B5：全局大文件候选 + 按扩展名聚合（并行扫描，结构需线程安全）
+                        if (f.Length >= BigFileThresholdBytes)
+                        {
+                            ctx.BigFiles.Add(new FileEntry
+                            {
+                                FullPath = f.FullPath,
+                                Name = f.Name,
+                                Size = f.Length,
+                                Allocated = VolumeInfo.RoundUpToCluster(f.Length, cluster),
+                                LastWriteTime = f.LastWriteTime,
+                                IsHiddenOrSystem = f.IsHiddenOrSystem,
+                                SpecialNote = SpecialFiles.GetNote(f.Name)
+                            });
+                        }
+                        AddTypeAgg(ctx, f);
                     }
 
                     foreach (var s in dirsData)
@@ -508,6 +545,58 @@ namespace FC.Services
             {
                 return null;
             }
+        }
+
+        /// <summary>扩展名 → [文件数, 字节数] 原子累加（GetOrAdd 保证跨线程同实例）。</summary>
+        private static void AddTypeAgg(ScanContext ctx, FastDirectory.FileInfoData f)
+        {
+            string ext = Path.GetExtension(f.Name);
+            if (ext.Length > 0)
+            {
+                ext = ext.ToLowerInvariant();
+            }
+            long[] agg = ctx.TypeAgg.GetOrAdd(ext, _ => new long[2]);
+            Interlocked.Increment(ref agg[0]);
+            Interlocked.Add(ref agg[1], f.Length);
+        }
+
+        /// <summary>从并发收集结构组装 ScanResult 的大文件清单与类型统计。</summary>
+        private static void AssembleResultExtras(ScanContext ctx, ScanResult result)
+        {
+            // B4：候选 → 大小降序 → 只留 Top N
+            var bigList = new List<FileEntry>(ctx.BigFiles);
+            bigList.Sort((a, b) =>
+            {
+                int bySize = b.Size.CompareTo(a.Size);
+                if (bySize != 0)
+                {
+                    return bySize;
+                }
+                return string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+            });
+            if (bigList.Count > LargeFileCount)
+            {
+                bigList.RemoveRange(LargeFileCount, bigList.Count - LargeFileCount);
+            }
+            result.LargeFiles = bigList;
+
+            // B5：类型聚合 → 字节降序 → Top N
+            var types = new List<TypeStat>(ctx.TypeAgg.Count);
+            foreach (var kv in ctx.TypeAgg)
+            {
+                types.Add(new TypeStat
+                {
+                    Extension = string.IsNullOrEmpty(kv.Key) ? null : kv.Key,
+                    Count = System.Threading.Interlocked.Read(ref kv.Value[0]),
+                    Bytes = System.Threading.Interlocked.Read(ref kv.Value[1])
+                });
+            }
+            types.Sort((a, b) => b.Bytes.CompareTo(a.Bytes));
+            if (types.Count > TypeStatCount)
+            {
+                types.RemoveRange(TypeStatCount, types.Count - TypeStatCount);
+            }
+            result.TypeStats = types;
         }
 
         // ==================== 完成聚合 ====================

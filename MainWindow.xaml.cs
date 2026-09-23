@@ -28,6 +28,10 @@ namespace FC
         private void OnMenuFile(object sender, RoutedEventArgs e)
         {
             var menu = new ContextMenu();
+            AddCommandItem(menu, "清理建议…", _viewModel.OpenCleanupCommand);
+            AddCommandItem(menu, "查看最大文件…", _viewModel.ShowLargeFilesCommand);
+            AddCommandItem(menu, "类型统计…", _viewModel.ShowTypeStatsCommand);
+            menu.Items.Add(new Separator());
             AddCommandItem(menu, "查看迁移记录", _viewModel.ShowHistoryCommand);
             menu.Items.Add(new Separator());
             var exit = new MenuItem { Header = "退出" };
