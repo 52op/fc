@@ -8,6 +8,14 @@ using System.Threading;
 
 namespace FC.Services
 {
+    /// <summary>线程安全自增计数器（.NET Framework 无 Interlocked 带返回值原子版，手写封装）。</summary>
+    public sealed class AtomicInteger
+    {
+        private int _value;
+        public AtomicInteger(int initial) { _value = initial; }
+
+        public int GetAndIncrement() { return Interlocked.Increment(ref _value) - 1; }
+    }
     /// <summary>可清理项的分级：安全项默认勾选，谨慎项默认不勾（需用户主动选择）。</summary>
     public enum CleanupSafety
     {
@@ -376,41 +384,67 @@ namespace FC.Services
 
         // ==================== 占用估算 ====================
 
-        /// <summary>并行估算各项占用（后台线程调用；进度回调每完成一项报告）。</summary>
+        /// <summary>并行估算各项占用（后台线程调用；进度回调每完成一项报告）。
+        /// 并发限制为 3 个 worker 按任务队列取项，避免大目录同时全速统计造成内存尖峰（小内存机器闪退）。</summary>
         public static void RefreshSizes(List<CleanupItem> items, IProgress<string> progress, CancellationToken ct)
         {
             if (items == null)
             {
                 return;
             }
-            using (var mre = new CountdownEvent(items.Count))
+            int total = items.Count;
+            if (total == 0)
             {
-                foreach (var item in items)
+                return;
+            }
+            int workers = Math.Min(3, total);
+            var next = new AtomicInteger(0);
+            var mre = new CountdownEvent(workers);
+            for (int w = 0; w < workers; w++)
+            {
+                ThreadPool.QueueUserWorkItem(_ =>
                 {
-                    ct.ThrowIfCancellationRequested();
-                    var it = item;
-                    ThreadPool.QueueUserWorkItem(_ =>
+                    try
                     {
-                        try
+                        while (true)
                         {
-                            it.Bytes = EstimateItem(it);
+                            ct.ThrowIfCancellationRequested();
+                            int idx = next.GetAndIncrement();
+                            if (idx >= total)
+                            {
+                                break;
+                            }
+                            var it = items[idx];
+                            try
+                            {
+                                it.Bytes = EstimateItem(it);
+                            }
+                            catch (Exception)
+                            {
+                                it.Bytes = -1;
+                            }
+                            finally
+                            {
+                                it.IsSized = true; // 0 也是结果；只有异常才是"未知"
+                            }
                         }
-                        catch (Exception)
-                        {
-                            it.Bytes = -1;
-                        }
-                        finally
-                        {
-                            it.IsSized = true; // 0 也是结果；只有异常才是"未知"
-                            mre.Signal();
-                        }
-                    });
-                }
-                while (!mre.Wait(200))
-                {
-                    ct.ThrowIfCancellationRequested();
-                    progress?.Report("正在统计可清理空间…");
-                }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    finally
+                    {
+                        mre.Signal();
+                    }
+                });
+            }
+            while (!mre.Wait(200))
+            {
+                ct.ThrowIfCancellationRequested();
+                progress?.Report("正在统计可清理空间…");
             }
         }
 
@@ -450,38 +484,18 @@ namespace FC.Services
             return total;
         }
 
-        /// <summary>递归统计目录大小（不跟随重解析点，带 20s 上限，超时返回已计部分）。</summary>
+        /// <summary>递归统计目录大小（流式，不跟随重解析点，带 60s/200 万文件上限，超限返回已计部分）。
+        /// 用 FastDirectory.SumSizeRecursive——不物化 List，内存恒定，避免大目录引发内存尖峰。</summary>
         private static long SizeDirectory(string dir)
         {
-            long total = 0;
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var stack = new Stack<string>();
-            stack.Push(dir);
-            while (stack.Count > 0 && sw.ElapsedMilliseconds < 20000)
+            try
             {
-                string cur = stack.Pop();
-                try
-                {
-                    var dirs = new List<FastDirectory.DirInfoData>();
-                    var files = new List<FastDirectory.FileInfoData>();
-                    FastDirectory.List(cur, dirs, files);
-                    foreach (var f in files)
-                    {
-                        total += f.Length;
-                    }
-                    foreach (var d in dirs)
-                    {
-                        if (!d.IsReparse)
-                        {
-                            stack.Push(d.FullPath);
-                        }
-                    }
-                }
-                catch (Exception)
-                {
-                }
+                return FastDirectory.SumSizeRecursive(dir);
             }
-            return total;
+            catch (Exception)
+            {
+                return 0;
+            }
         }
 
         // ==================== 执行清理 ====================

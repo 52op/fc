@@ -44,13 +44,14 @@ namespace FC.Services
             return result;
         }
 
-        /// <summary>组件存储目录 WinSxS 大小（可能数百 MB~数 GB；受权限影响读取不全属正常）。</summary>
+        /// <summary>组件存储目录 WinSxS 大小（可能数百 MB~数 GB；受权限影响读取不全属正常）。
+        /// 流式求和，不物化 List，避免大目录内存尖峰。</summary>
         public static long GetWinSxSSize()
         {
             try
             {
                 string sx = Path.Combine(Windir, "WinSxS");
-                return Directory.Exists(sx) ? SizeDirectory(sx) : 0;
+                return Directory.Exists(sx) ? FastDirectory.SumSizeRecursive(sx) : 0;
             }
             catch (Exception)
             {
@@ -188,40 +189,6 @@ namespace FC.Services
             catch (Exception)
             {
             }
-        }
-
-        /// <summary>递归统计目录大小（不跟随重解析点，30s 上限）。</summary>
-        private static long SizeDirectory(string dir)
-        {
-            long total = 0;
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var stack = new Stack<string>();
-            stack.Push(dir);
-            while (stack.Count > 0 && sw.ElapsedMilliseconds < 30000)
-            {
-                string cur = stack.Pop();
-                try
-                {
-                    var dirs = new List<FastDirectory.DirInfoData>();
-                    var files = new List<FastDirectory.FileInfoData>();
-                    FastDirectory.List(cur, dirs, files);
-                    foreach (var f in files)
-                    {
-                        total += f.Length;
-                    }
-                    foreach (var d in dirs)
-                    {
-                        if (!d.IsReparse)
-                        {
-                            stack.Push(d.FullPath);
-                        }
-                    }
-                }
-                catch (Exception)
-                {
-                }
-            }
-            return total;
         }
     }
 

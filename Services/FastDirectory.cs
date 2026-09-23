@@ -155,6 +155,60 @@ namespace FC.Services
             }
         }
 
+        /// <summary>
+        /// 流式递归求和：FindFirstFileEx 逐条目累计，不构建文件/目录 List（内存恒定 O(1)）。
+        /// 用于占用量估算（清理建议统计可清理空间等），避免大目录物化 List 引发高峰内存/换页/闪退。
+        /// 附加上限：单次统计 60s、统计文件数上限 2_000_000（防失控），超限返回已计部分。
+        /// </summary>
+        public static long SumSizeRecursive(string root)
+        {
+            long total = 0;
+            long counted = 0;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var stack = new System.Collections.Generic.Stack<string>();
+            stack.Push(root);
+            while (stack.Count > 0 && sw.ElapsedMilliseconds < 60000 && counted < 2000000)
+            {
+                string dir = stack.Pop();
+                string pattern = dir + "\\*";
+                WIN32_FIND_DATA fd;
+                IntPtr h = FindFirstFileEx(
+                    pattern, FINDEX_INFO_LEVELS.FindExInfoBasic,
+                    out fd, FINDEX_SEARCH_OPS.FindExSearchNameMatch,
+                    IntPtr.Zero, FIND_FIRST_EX_LARGE_FETCH);
+                if (h == IntPtr.Zero || h == new IntPtr(-1))
+                {
+                    continue; // 无权限等：跳过该目录
+                }
+                try
+                {
+                    do
+                    {
+                        if (fd.cFileName == "." || fd.cFileName == "..")
+                        {
+                            continue;
+                        }
+                        bool isDir = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+                        bool isReparse = (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+                        if (isDir && !isReparse)
+                        {
+                            stack.Push(dir + "\\" + fd.cFileName);
+                        }
+                        else if (!isDir)
+                        {
+                            total += ((long)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
+                            counted++;
+                        }
+                    } while (FindNextFile(h, out fd));
+                }
+                finally
+                {
+                    FindClose(h);
+                }
+            }
+            return total;
+        }
+
         private static DateTime FileTimeToDateTime(System.Runtime.InteropServices.ComTypes.FILETIME ft)
         {
             long ticks = ((long)(uint)ft.dwHighDateTime << 32) | (uint)ft.dwLowDateTime;

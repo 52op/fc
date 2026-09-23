@@ -39,7 +39,7 @@ if (-not (Test-Path $fcExe)) { throw "找不到 FC.exe，请先构建项目：$f
 Copy-Item $fcExe (Join-Path $testsDir 'FC.exe') -Force
 
 $tests = @('Test', 'QuickTest', 'LockTest', 'CleanupFeatureTest', 'CleanupPropTest',
-           'CleanupProgressTest', 'CleanupLogFormatTest', 'SnapshotTest', 'MenuCmdTest')
+           'CleanupProgressTest', 'CleanupLogFormatTest', 'StreamSizeTest', 'SnapshotTest', 'MenuCmdTest')
 
 $failed = @()
 foreach ($t in $tests) {

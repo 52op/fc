@@ -696,9 +696,12 @@ namespace FC.ViewModels
         /// <summary>清理建议窗口（不依赖扫描结果，随时可开）。</summary>
         private void OpenCleanup()
         {
-            var win = new CleanupWindow(new CleanupViewModel(_services));
-            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
-            win.ShowDialog();
+            SafeOpenWindow("清理建议", () =>
+            {
+                var win = new CleanupWindow(new CleanupViewModel(_services));
+                win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+                win.ShowDialog();
+            });
         }
 
         /// <summary>全局最大文件窗口（数据来自最近一次完整扫描）。</summary>
@@ -709,10 +712,13 @@ namespace FC.ViewModels
                 _services.Dialogs.ShowError("还没有数据", "请先扫描一个盘符/目录，再查看“最大文件”。");
                 return;
             }
-            var vm = new LargeFilesViewModel(LastResult.LargeFiles, LastResult.LargeFilesComplete);
-            var win = new LargeFilesWindow(vm);
-            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
-            win.ShowDialog();
+            SafeOpenWindow("最大文件", () =>
+            {
+                var vm = new LargeFilesViewModel(LastResult.LargeFiles, LastResult.LargeFilesComplete);
+                var win = new LargeFilesWindow(vm);
+                win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+                win.ShowDialog();
+            });
         }
 
         /// <summary>类型统计窗口（数据来自最近一次完整扫描）。</summary>
@@ -723,11 +729,14 @@ namespace FC.ViewModels
                 _services.Dialogs.ShowError("还没有数据", "请先扫描一个盘符/目录，再查看“类型统计”。");
                 return;
             }
-            long total = LastResult.RootNode != null ? LastResult.RootNode.TotalSize : 0;
-            var vm = new TypeStatsViewModel(LastResult.TypeStats, total);
-            var win = new TypeStatsWindow(vm);
-            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
-            win.ShowDialog();
+            SafeOpenWindow("类型统计", () =>
+            {
+                long total = LastResult.RootNode != null ? LastResult.RootNode.TotalSize : 0;
+                var vm = new TypeStatsViewModel(LastResult.TypeStats, total);
+                var win = new TypeStatsWindow(vm);
+                win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+                win.ShowDialog();
+            });
         }
 
         /// <summary>增量对比窗口（对比最近两次扫描的快照）。</summary>
@@ -738,10 +747,30 @@ namespace FC.ViewModels
                 _services.Dialogs.ShowError("还没有数据", "请先扫描一个盘符/目录，再查看“增量对比”。");
                 return;
             }
-            var vm = new DeltaViewModel(LastResult.RootNode);
-            var win = new DeltaWindow(vm);
-            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
-            win.ShowDialog();
+            SafeOpenWindow("增量对比", () =>
+            {
+                var vm = new DeltaViewModel(LastResult.RootNode);
+                var win = new DeltaWindow(vm);
+                win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+                win.ShowDialog();
+            });
+        }
+
+        /// <summary>
+        /// 打开子窗口的统一保护：构造/显示期间任何异常都落盘并弹错，绝不让主程序崩溃。
+        /// </summary>
+        private void SafeOpenWindow(string title, Action open)
+        {
+            try
+            {
+                open();
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Write("打开窗口-" + title, ex);
+                _services.Dialogs.ShowError("打开“" + title + "”失败",
+                    ex.Message + "\n\n详细信息已写入：\n" + CrashLog.LogPath);
+            }
         }
 
         /// <summary>扫描完成后保存增量基准快照（后台写文件，不阻塞 UI）。</summary>

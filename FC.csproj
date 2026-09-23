@@ -133,6 +133,7 @@
     <Compile Include="Models\ScanProgress.cs" />
     <Compile Include="Services\AppServices.cs" />
     <Compile Include="Services\CliRunner.cs" />
+    <Compile Include="Services\CrashLog.cs" />
     <Compile Include="Services\CopyMigrator.cs" />
     <Compile Include="Services\FileLister.cs" />
     <Compile Include="Services\FastDirectory.cs" />
