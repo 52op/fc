@@ -42,8 +42,8 @@
                 <TextBlock Grid.Column="0" Text="{Binding SystemFilesText}" TextWrapping="Wrap"
                            Foreground="{DynamicResource SecondaryTextBrush}"
                            VerticalAlignment="Top" />
-                <Button Grid.Column="1" Content="复制“关闭休眠”命令" Command="{Binding CopyPowercfgCommand}"
-                        Padding="10,4" Margin="8,0,0,0" />
+                <Button Grid.Column="1" Content="关闭休眠并释放空间" Command="{Binding DisableHibernateCommand}"
+                        Padding="10,4" Margin="8,0,0,0" ToolTip="执行 powercfg /hibernate off（需管理员），删除 hiberfil.sys 释放空间" />
                 <Button Grid.Column="2" Content="打开虚拟内存设置…" Command="{Binding OpenVirtualMemoryCommand}"
                         Padding="10,4" Margin="4,0,0,0" />
             </Grid>
@@ -60,8 +60,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding WinSxSInfo}" TextWrapping="Wrap"
                            Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Top" />
-                <Button Grid.Column="1" Content="复制 DISM 清理命令" Command="{Binding CopyDismCommand}"
-                        Padding="10,4" Margin="8,0,0,0" />
+                <Button Grid.Column="1" Content="一键 DISM 组件清理" Command="{Binding RunDismCommand}"
+                        Padding="10,4" Margin="8,0,0,0" ToolTip="执行 dism /Online /Cleanup-Image /StartComponentCleanup（需管理员，数分钟）" />
                 <Button Grid.Column="2" Content="打开磁盘清理…" Command="{Binding OpenDiskCleanupCommand}"
                         Padding="10,4" Margin="4,0,0,0" />
             </Grid>

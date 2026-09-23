@@ -40,8 +40,8 @@ namespace FC.ViewModels
             CancelCommand = new RelayCommand(Cancel, () => _busy);
             OpenVirtualMemoryCommand = new RelayCommand(SystemAudit.OpenVirtualMemorySettings);
             OpenDiskCleanupCommand = new RelayCommand(() => SystemAudit.OpenDiskCleanup());
-            CopyDismCommand = new RelayCommand(() => CopyText(SystemAudit.DismCommandText()));
-            CopyPowercfgCommand = new RelayCommand(() => CopyText(SystemAudit.PowercfgOffHibernateCommand()));
+            DisableHibernateCommand = new RelayCommand(async () => await DisableHibernateAsync());
+            RunDismCommand = new RelayCommand(async () => await RunDismAsync());
 
             // A2：系统特殊大文件审计（同步快）
             RefreshSystemFiles();
@@ -128,9 +128,9 @@ namespace FC.ViewModels
 
         public RelayCommand OpenDiskCleanupCommand { get; private set; }
 
-        public RelayCommand CopyDismCommand { get; private set; }
+        public RelayCommand DisableHibernateCommand { get; private set; }
 
-        public RelayCommand CopyPowercfgCommand { get; private set; }
+        public RelayCommand RunDismCommand { get; private set; }
 
         /// <summary>系统盘特殊大文件审计文本（hiberfil/pagefile/swapfile 大小与建议）。</summary>
         public string SystemFilesText
@@ -164,11 +164,11 @@ namespace FC.ViewModels
                 string hint;
                 if (string.Equals(f.Name, "hiberfil.sys", StringComparison.OrdinalIgnoreCase))
                 {
-                    hint = "休眠文件（≈内存大小）。管理员执行 “powercfg /hibernate off” 可删除并释放";
+                    hint = "休眠文件（≈内存大小）。点下方按钮“关闭休眠”可删除并释放";
                 }
                 else if (string.Equals(f.Name, "pagefile.sys", StringComparison.OrdinalIgnoreCase))
                 {
-                    hint = "虚拟内存页文件。在“虚拟内存设置”中可调节";
+                    hint = "虚拟内存页文件。点下方按钮“打开虚拟内存设置”可调节";
                 }
                 else if (string.Equals(f.Name, "swapfile.sys", StringComparison.OrdinalIgnoreCase))
                 {
@@ -183,14 +183,101 @@ namespace FC.ViewModels
             SystemFilesText = parts.Count > 0 ? string.Join("\n", parts) : "";
         }
 
-        private static void CopyText(string text)
+        /// <summary>关闭休眠（需管理员，触发 UAC）：删除 hiberfil.sys 并释放空间。</summary>
+        private async Task DisableHibernateAsync()
         {
+            if (!_services.Dialogs.Confirm("关闭休眠",
+                "关闭休眠会删除 hiberfil.sys（约 " + SystemFilesHiberBytesText + "），释放该空间。\n"
+                + "注意：将无法使用“休眠”功能（睡眠不受影响）。\n\n"
+                + "继续？"))
+            {
+                return;
+            }
+            if (!ElevatedRunner.IsAdministrator())
+            {
+                if (!_services.Dialogs.Confirm("需要管理员",
+                    "关闭休眠需要管理员权限。\n将弹出 UAC 确认框，请点“是”。\n\n继续？"))
+                {
+                    return;
+                }
+            }
+            AppendLog("正在以管理员权限关闭休眠…（如弹出 UAC 请点“是”）");
+            StatusText = "正在关闭休眠（需管理员）…";
+            CommandResult r = await Task.Run(() =>
+                SystemAudit.RunCommandElevated("powercfg.exe", "/hibernate off"));
+            if (r.Success)
+            {
+                AppendLog("已关闭休眠。hiberfil.sys 已被系统删除。");
+                StatusText = "已关闭休眠，hiberfil.sys 已删除。";
+                RefreshSystemFiles();
+            }
+            else
+            {
+                AppendLog("关闭休眠未成功（可能被取消或权限不足）：" + r.Output);
+                StatusText = "关闭休眠未成功。";
+                _services.Dialogs.ShowError("关闭休眠未成功",
+                    r.Cancelled ? "已取消 UAC 确认。" : (string.IsNullOrEmpty(r.Output) ? "权限不足。" : r.Output));
+            }
+        }
+
+        /// <summary>DISM 清理 WinSxS 失效组件（需管理员，慢，分钟级）。</summary>
+        private async Task RunDismAsync()
+        {
+            if (!_services.Dialogs.Confirm("DISM 组件清理",
+                "将执行系统组件清理（WinSxS）：\n" + SystemAudit.DismCommandText() + "\n\n"
+                + "该操作需管理员权限，耗时数分钟，期间电脑可能变慢。\n"
+                + "完成后可释放数 GB 空间。\n\n继续？"))
+            {
+                return;
+            }
+            if (!ElevatedRunner.IsAdministrator())
+            {
+                if (!_services.Dialogs.Confirm("需要管理员",
+                    "DISM 清理需要管理员权限。\n将弹出 UAC 确认框，请点“是”。\n\n继续？"))
+                {
+                    return;
+                }
+            }
+            IsBusy = true;
+            AppendLog("正在执行 DISM 组件清理（需管理员，数分钟）…");
+            StatusText = "正在执行 DISM 组件清理…（数分钟，期间可继续浏览）";
             try
             {
-                System.Windows.Clipboard.SetText(text);
+                CommandResult r = await Task.Run(() =>
+                    SystemAudit.RunCommandElevated("dism.exe", "/Online /Cleanup-Image /StartComponentCleanup"));
+                AppendLog(r.Output);
+                if (r.Success)
+                {
+                    StatusText = "DISM 组件清理完成。";
+                    _winSxSInfo = "组件存储（WinSxS）已清理完成。";
+                    OnPropertyChanged("WinSxSInfo");
+                }
+                else
+                {
+                    StatusText = "DISM 清理未成功。";
+                    _services.Dialogs.ShowError("DISM 清理未成功",
+                        r.Cancelled ? "已取消 UAC 确认。" : (string.IsNullOrEmpty(r.Output) ? "权限不足。" : r.Output));
+                }
             }
-            catch (Exception)
+            finally
             {
+                IsBusy = false;
+            }
+        }
+
+        /// <summary>hiberfil.sys 大小文本（供确认提示用）。</summary>
+        private string SystemFilesHiberBytesText
+        {
+            get
+            {
+                foreach (var f in SystemAudit.ListSystemFiles())
+                {
+                    if (string.Equals(f.Name, "hiberfil.sys", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return FC.Converters.SizeText.Format(f.Bytes);
+                    }
+                }
+                return "若干 GB";
             }
         }
 

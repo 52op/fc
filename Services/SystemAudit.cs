@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 namespace FC.Services
 {
@@ -57,10 +58,11 @@ namespace FC.Services
             }
         }
 
-        /// <summary>打开"虚拟内存"设置（系统属性 → 高级 → 性能设置）。</summary>
+        /// <summary>打开"虚拟内存"设置（系统属性 → 高级 → 性能 → 高级 → 虚拟内存）。
+        /// 用 SystemPropertiesPerformance.exe 直接落到性能选项对话框，比 rundll32 参数更稳。</summary>
         public static void OpenVirtualMemorySettings()
         {
-            TryStart("rundll32.exe", "sysdm.cpl, /Advanced", true);
+            TryStart("SystemPropertiesPerformance.exe", null, true);
         }
 
         /// <summary>打开磁盘清理（cleanmgr，可选盘符参数）。</summary>
@@ -79,6 +81,98 @@ namespace FC.Services
         public static string PowercfgOffHibernateCommand()
         {
             return "powercfg /hibernate off";
+        }
+
+        /// <summary>
+        /// 以管理员身份执行命令（触发 UAC）。提权后的 cmd 子进程把输出与退出码重定向到临时文件，
+        /// 本方法轮询等待至完成（最长 timeoutMs，默认 20 分钟，覆盖 DISM 场景）。
+        /// 用户取消 UAC 时不会产生输出文件 → Cancelled=true。
+        /// </summary>
+        public static CommandResult RunCommandElevated(string file, string args, long timeoutMs = 20 * 60 * 1000)
+        {
+            var result = new CommandResult();
+            string outFile = null;
+            try
+            {
+                outFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "fc_cmd_" + Guid.NewGuid().ToString("N") + ".txt");
+                string cmd = string.Format(
+                    "/c (\"{0}\" {1}) > \"{2}\" 2>&1 & echo EXIT_CODE:%errorlevel% >> \"{2}\"",
+                    file, args, outFile);
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = cmd,
+                    Verb = "runas",
+                    UseShellExecute = true,
+                    CreateNoWindow = true
+                };
+                using (var p = Process.Start(psi))
+                {
+                    // shell 模式 Start 立即返回；UAC 子进程交由系统
+                }
+
+                if (!WaitForExitLine(outFile, timeoutMs))
+                {
+                    result.Cancelled = true;
+                    return result;
+                }
+
+                string text = File.ReadAllText(outFile);
+                int p0 = text.LastIndexOf("EXIT_CODE:", StringComparison.OrdinalIgnoreCase);
+                if (p0 >= 0)
+                {
+                    string tail = text.Substring(p0 + 10).Trim();
+                    var parts = tail.Split(' ');
+                    string code = parts.Length > 0 ? parts[0].Trim() : "";
+                    result.Success = code == "0";
+                    result.Output = text.Substring(0, p0).Trim();
+                }
+                else
+                {
+                    result.Output = text.Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.Output = result.Output.Length > 0 ? result.Output : ex.Message;
+            }
+            finally
+            {
+                if (outFile != null)
+                {
+                    try { File.Delete(outFile); } catch (Exception) { }
+                }
+            }
+            return result;
+        }
+
+        private static bool WaitForExitLine(string file, long timeoutMs)
+        {
+            int start = Environment.TickCount;
+            long limit = Math.Max(0, timeoutMs);
+            while (Environment.TickCount - start < limit)
+            {
+                try
+                {
+                    if (File.Exists(file) && File.ReadAllText(file).IndexOf("EXIT_CODE:", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                try
+                {
+                    Thread.Sleep(1000);
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return false;
         }
 
         private static void TryStart(string file, string args, bool useShell)
@@ -137,5 +231,18 @@ namespace FC.Services
         public string Name { get; set; }
         public string Path { get; set; }
         public long Bytes { get; set; }
+    }
+
+    /// <summary>提权命令执行结果。</summary>
+    public class CommandResult
+    {
+        public bool Success { get; set; }
+        public bool Cancelled { get; set; }
+        public string Output { get; set; }
+
+        public CommandResult()
+        {
+            Output = "";
+        }
     }
 }
