@@ -21,27 +21,84 @@ namespace FC.Services
         Risky
     }
 
-    /// <summary>一个可清理目标。</summary>
+    /// <summary>
+    /// 一个可清理目标。所有绑定字段都是**属性**（WPF 数据绑定不识别公有字段，用字段会显示空白）。
+    /// </summary>
     public class CleanupItem : System.ComponentModel.INotifyPropertyChanged
     {
         private long _bytes;
         private bool _selected;
+        private bool _isSized;
+        private string _title;
+        private string _description;
+        private string _key;
+        private string[] _paths;
+        private string _special;
+        private CleanupSafety _safety;
 
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
 
-        public string Key;
-        public string Title;
-        public string Description;
+        public string Key
+        {
+            get { return _key; }
+            set { _key = value; }
+        }
+
+        public string Title
+        {
+            get { return _title; }
+            set
+            {
+                if (_title != value)
+                {
+                    _title = value;
+                    Raise("Title");
+                }
+            }
+        }
+
+        public string Description
+        {
+            get { return _description; }
+            set
+            {
+                if (_description != value)
+                {
+                    _description = value;
+                    Raise("Description");
+                }
+            }
+        }
 
         /// <summary>待清空的目录或待删文件。Special 为空时按普通路径处理。</summary>
-        public string[] Paths;
+        public string[] Paths
+        {
+            get { return _paths; }
+            set { _paths = value; }
+        }
 
         /// <summary>特殊动作："recyclebin"（无 Paths，走 SHEmptyRecycleBin）。</summary>
-        public string Special;
+        public string Special
+        {
+            get { return _special; }
+            set { _special = value; }
+        }
 
-        public CleanupSafety Safety;
+        public CleanupSafety Safety
+        {
+            get { return _safety; }
+            set
+            {
+                if (_safety != value)
+                {
+                    _safety = value;
+                    Raise("Safety");
+                    Raise("SafetyText");
+                }
+            }
+        }
 
-        /// <summary>估算占用（刷新后有效；失败/未知为 -1 或 0）。</summary>
+        /// <summary>估算占用（已统计后有效；-1 = 统计失败）。</summary>
         public long Bytes
         {
             get { return _bytes; }
@@ -51,6 +108,21 @@ namespace FC.Services
                 {
                     _bytes = value;
                     Raise("Bytes");
+                    Raise("SizeText");
+                }
+            }
+        }
+
+        /// <summary>是否已完成占用估算（区分"真为 0"与"还没算"）。</summary>
+        public bool IsSized
+        {
+            get { return _isSized; }
+            set
+            {
+                if (_isSized != value)
+                {
+                    _isSized = value;
+                    Raise("IsSized");
                     Raise("SizeText");
                 }
             }
@@ -70,18 +142,22 @@ namespace FC.Services
             }
         }
 
-        /// <summary>占用文本（未统计时显示"统计中…"，失败显示"未知"）。</summary>
+        /// <summary>占用文本：未统计="统计中…"，失败="未知"，0="0 B"，其余人类可读。</summary>
         public string SizeText
         {
             get
             {
+                if (!_isSized)
+                {
+                    return "统计中…";
+                }
                 if (_bytes < 0)
                 {
                     return "未知";
                 }
                 if (_bytes == 0)
                 {
-                    return "统计中…";
+                    return "0 B";
                 }
                 return FC.Converters.SizeText.Format(_bytes);
             }
@@ -91,7 +167,7 @@ namespace FC.Services
         {
             get
             {
-                switch (Safety)
+                switch (_safety)
                 {
                     case CleanupSafety.Safe:
                         return "安全";
@@ -248,8 +324,8 @@ namespace FC.Services
                 Paths = pathsOk.ToArray(),
                 Special = special,
                 Safety = safety,
-                Bytes = 0,
-                Selected = selected
+                Selected = selected,
+                IsSized = false
             });
         }
 
@@ -325,6 +401,7 @@ namespace FC.Services
                         }
                         finally
                         {
+                            it.IsSized = true; // 0 也是结果；只有异常才是"未知"
                             mre.Signal();
                         }
                     });
