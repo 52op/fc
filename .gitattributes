@@ -1,0 +1,8 @@
+# 统一换行符，避免 Windows/Linux 混用告警
+* text=auto
+*.cs   text
+*.xaml text
+*.csproj text
+*.config text
+*.xml  text
+*.slnx text

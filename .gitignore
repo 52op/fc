@@ -1,0 +1,13 @@
+## .NET Framework 构建产物
+bin/
+obj/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## 运行期用户数据
+# 缓存/日志由程序写到 %APPDATA%\FC，不提交
