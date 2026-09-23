@@ -217,17 +217,6 @@ namespace FC.Services
         private const uint SHERB_NOPROGRESSUI = 0x2;
         private const uint SHERB_NOSOUND = 0x4;
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct SHQUERYRBINFO
-        {
-            public int cbSize;
-            public long i64Size;
-            public long i64NumItems;
-        }
-
-        [DllImport("shell32.dll")]
-        private static extern int SHQueryRecycleBin(string pszRootPath, ref SHQUERYRBINFO pSHQueryRBInfo);
-
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
         private static extern int SHEmptyRecycleBin(IntPtr hwnd, string pszRootPath, uint dwFlags);
 
@@ -457,16 +446,45 @@ namespace FC.Services
             }
         }
 
+        /// <summary>
+        /// 估算回收站占用：遍历各盘根目录下的 $Recycle.Bin（含各用户 SID 子目录）真实求和。
+        /// 不使用 SHQueryRecycleBin——该 API 在多盘/某些系统上会返回异常大的垃圾值（曾出现 13.8TB）。
+        /// </summary>
+        public static long EstimateRecycleBin()
+        {
+            long total = 0;
+            try
+            {
+                foreach (var drive in DriveInfo.GetDrives())
+                {
+                    try
+                    {
+                        if (drive.DriveType != DriveType.Fixed && drive.DriveType != DriveType.Removable)
+                        {
+                            continue;
+                        }
+                        string rb = Path.Combine(drive.RootDirectory.FullName, "$Recycle.Bin");
+                        if (Directory.Exists(rb))
+                        {
+                            total += FastDirectory.SumSizeRecursive(rb);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return total;
+        }
+
         private static long EstimateItem(CleanupItem item)
         {
             if (item.Special == "recyclebin")
             {
-                var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf(typeof(SHQUERYRBINFO)) };
-                if (SHQueryRecycleBin(null, ref info) == 0)
-                {
-                    return info.i64Size;
-                }
-                return 0;
+                return EstimateRecycleBin();
             }
             if (item.Paths == null)
             {
