@@ -11,3 +11,8 @@ obj/
 
 ## 运行期用户数据
 # 缓存/日志由程序写到 %APPDATA%\FC，不提交
+
+## 测试产物（源码随 git 管理，编译出的 exe/FC 副本不入库）
+tests/*.exe
+tests/FC.exe
+tests/FC.pdb
