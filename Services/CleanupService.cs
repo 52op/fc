@@ -385,8 +385,11 @@ namespace FC.Services
         // ==================== 占用估算 ====================
 
         /// <summary>并行估算各项占用（后台线程调用；进度回调每完成一项报告）。
-        /// 并发限制为 3 个 worker 按任务队列取项，避免大目录同时全速统计造成内存尖峰（小内存机器闪退）。</summary>
-        public static void RefreshSizes(List<CleanupItem> items, IProgress<string> progress, CancellationToken ct)
+        /// 并发限制为 3 个 worker 按任务队列取项，避免大目录同时全速统计造成内存尖峰（小内存机器闪退）。
+        /// <para>worker 不直接改 item（跨线程改 observable 会崩绑定），结果经 <paramref name="onSized"/> 回调交回前
+        /// （调用方负责 marshal 到 UI 线程）；onSized 为 null 时直接写（无 UI 场景，如测试）。</para></summary>
+        public static void RefreshSizes(List<CleanupItem> items, IProgress<string> progress,
+            CancellationToken ct, Action<CleanupItem, long> onSized = null)
         {
             if (items == null)
             {
@@ -415,17 +418,23 @@ namespace FC.Services
                                 break;
                             }
                             var it = items[idx];
+                            long size;
                             try
                             {
-                                it.Bytes = EstimateItem(it);
+                                size = EstimateItem(it);
                             }
                             catch (Exception)
                             {
-                                it.Bytes = -1;
+                                size = -1;
                             }
-                            finally
+                            if (onSized != null)
                             {
-                                it.IsSized = true; // 0 也是结果；只有异常才是"未知"
+                                onSized(it, size);
+                            }
+                            else
+                            {
+                                it.Bytes = size;
+                                it.IsSized = true;
                             }
                         }
                     }

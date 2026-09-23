@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using FC.Services;
 
 namespace FC.ViewModels
@@ -325,9 +326,15 @@ namespace FC.ViewModels
             SelectedBytes = -1;
 
             var snapshot = Items.ToList();
+
+            // 关键：Progress<T> 必须在 UI 线程构造（捕获 DispatcherSynchronizationContext），
+            // 否则 Report 在后台线程直接调用 handler → 跨线程改 ObservableCollection 崩溃（闪退）。
+            var progress = new Progress<string>(AppendLog);
+            var dispatch = Application.Current != null ? Application.Current.Dispatcher : null;
             Task.Run(() =>
             {
-                CleanupService.RefreshSizes(snapshot, new Progress<string>(s => AppendLog(s)), ct);
+                CleanupService.RefreshSizes(snapshot, progress, ct,
+                    (it, size) => ApplySizedOnUi(dispatch, it, size));
             }).ContinueWith(t =>
             {
                 if (t.IsCanceled)
@@ -357,6 +364,22 @@ namespace FC.ViewModels
                     SelectedBytes = snapshot.Where(i => i.Selected && i.Bytes > 0).Sum(i => i.Bytes);
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
+        /// <summary>把统计结果应用到 CleanupItem（必须回到 UI 线程，避免跨线程 INPC/绑定崩溃）。</summary>
+        private static void ApplySizedOnUi(System.Windows.Threading.Dispatcher dispatch, CleanupItem item, long size)
+        {
+            if (dispatch == null || dispatch.CheckAccess())
+            {
+                item.Bytes = size;
+                item.IsSized = true;
+                return;
+            }
+            dispatch.Invoke(new Action(() =>
+            {
+                item.Bytes = size;
+                item.IsSized = true;
+            }));
         }
 
         private void Cancel()
@@ -543,6 +566,17 @@ namespace FC.ViewModels
         }
 
         private void AppendLog(string line)
+        {
+            // 双保险：任何非 UI 线程调用都 marshal 回 UI 线程，避免绑定 CollectionView 崩溃
+            if (Application.Current != null && !Application.Current.Dispatcher.CheckAccess())
+            {
+                Application.Current.Dispatcher.Invoke(new Action(() => AppendLogInner(line)));
+                return;
+            }
+            AppendLogInner(line);
+        }
+
+        private void AppendLogInner(string line)
         {
             if (Logs.Count > 800)
             {
