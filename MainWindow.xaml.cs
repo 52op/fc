@@ -31,6 +31,7 @@ namespace FC
             AddCommandItem(menu, "清理建议…", _viewModel.OpenCleanupCommand);
             AddCommandItem(menu, "查看最大文件…", _viewModel.ShowLargeFilesCommand);
             AddCommandItem(menu, "类型统计…", _viewModel.ShowTypeStatsCommand);
+            AddCommandItem(menu, "增量对比…", _viewModel.ShowDeltaCommand);
             menu.Items.Add(new Separator());
             AddCommandItem(menu, "查看迁移记录", _viewModel.ShowHistoryCommand);
             menu.Items.Add(new Separator());

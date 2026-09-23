@@ -19,6 +19,9 @@ namespace FC.ViewModels
         private string _statusText;
         private bool _busy;
         private long _selectedBytes = -1;
+        private string _systemFilesText;
+        private string _winSxSInfo;
+        private bool _winSxSDone;
 
         public CleanupViewModel(AppServices services)
         {
@@ -30,6 +33,25 @@ namespace FC.ViewModels
             CleanCommand = new RelayCommand(async () => await CleanAsync(),
                 () => !_busy && Items.Any(i => i.Selected));
             CancelCommand = new RelayCommand(Cancel, () => _busy);
+            OpenVirtualMemoryCommand = new RelayCommand(SystemAudit.OpenVirtualMemorySettings);
+            OpenDiskCleanupCommand = new RelayCommand(() => SystemAudit.OpenDiskCleanup());
+            CopyDismCommand = new RelayCommand(() => CopyText(SystemAudit.DismCommandText()));
+            CopyPowercfgCommand = new RelayCommand(() => CopyText(SystemAudit.PowercfgOffHibernateCommand()));
+
+            // A2：系统特殊大文件审计（同步快）
+            RefreshSystemFiles();
+            // C8：WinSxS 大小（递归，后台算，算完刷新绑定）
+            _winSxSInfo = "组件存储（WinSxS）统计中…";
+            Task.Run(() => SystemAudit.GetWinSxSSize()).ContinueWith((Task<long> t) =>
+            {
+                if (!t.IsFaulted)
+                {
+                    _winSxSInfo = string.Format("组件存储（WinSxS）≈ {0}，可用 DISM 清理失效组件以减少占用",
+                        FC.Converters.SizeText.Format(t.Result));
+                    _winSxSDone = true;
+                    OnPropertyChanged("WinSxSInfo");
+                }
+            }, TaskScheduler.FromCurrentSynchronizationContext());
 
             StatusText = "正在统计可清理空间…";
             BeginSizeRefresh();
@@ -77,6 +99,76 @@ namespace FC.ViewModels
         public RelayCommand CleanCommand { get; private set; }
 
         public RelayCommand CancelCommand { get; private set; }
+
+        public RelayCommand OpenVirtualMemoryCommand { get; private set; }
+
+        public RelayCommand OpenDiskCleanupCommand { get; private set; }
+
+        public RelayCommand CopyDismCommand { get; private set; }
+
+        public RelayCommand CopyPowercfgCommand { get; private set; }
+
+        /// <summary>系统盘特殊大文件审计文本（hiberfil/pagefile/swapfile 大小与建议）。</summary>
+        public string SystemFilesText
+        {
+            get { return _systemFilesText; }
+            set { Set(ref _systemFilesText, value); }
+        }
+
+        public bool HasSystemFiles
+        {
+            get { return !string.IsNullOrEmpty(_systemFilesText); }
+        }
+
+        /// <summary>WinSxS 组件存储提示文本。</summary>
+        public string WinSxSInfo
+        {
+            get { return _winSxSInfo; }
+            set { Set(ref _winSxSInfo, value); }
+        }
+
+        public bool WinSxSDone
+        {
+            get { return _winSxSDone; }
+        }
+
+        private void RefreshSystemFiles()
+        {
+            var parts = new List<string>();
+            foreach (var f in SystemAudit.ListSystemFiles())
+            {
+                string hint;
+                if (string.Equals(f.Name, "hiberfil.sys", StringComparison.OrdinalIgnoreCase))
+                {
+                    hint = "休眠文件（≈内存大小）。管理员执行 “powercfg /hibernate off” 可删除并释放";
+                }
+                else if (string.Equals(f.Name, "pagefile.sys", StringComparison.OrdinalIgnoreCase))
+                {
+                    hint = "虚拟内存页文件。在“虚拟内存设置”中可调节";
+                }
+                else if (string.Equals(f.Name, "swapfile.sys", StringComparison.OrdinalIgnoreCase))
+                {
+                    hint = "系统交换文件，一般无需手动处理";
+                }
+                else
+                {
+                    hint = "系统临时/转储文件";
+                }
+                parts.Add(f.Name + " = " + FC.Converters.SizeText.Format(f.Bytes) + "（" + hint + "）");
+            }
+            SystemFilesText = parts.Count > 0 ? string.Join("\n", parts) : "";
+        }
+
+        private static void CopyText(string text)
+        {
+            try
+            {
+                System.Windows.Clipboard.SetText(text);
+            }
+            catch (Exception)
+            {
+            }
+        }
 
         public string SelectedSummary
         {

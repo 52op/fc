@@ -25,6 +25,47 @@
                    Text="{Binding StatusText}" Foreground="{DynamicResource SecondaryTextBrush}"
                    TextWrapping="Wrap" />
 
+        <!-- 系统级空间审计提示（A2 休眠/页文件、C8 WinSxS、C7 卷影） -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="4" Background="{DynamicResource SurfaceBrush}" Margin="0,4,0,4"
+                Padding="8,6" Visibility="{Binding HasSystemFiles, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding SystemFilesText}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           VerticalAlignment="Top" />
+                <Button Grid.Column="1" Content="复制“关闭休眠”命令" Command="{Binding CopyPowercfgCommand}"
+                        Padding="10,4" Margin="8,0,0,0" />
+                <Button Grid.Column="2" Content="打开虚拟内存设置…" Command="{Binding OpenVirtualMemoryCommand}"
+                        Padding="10,4" Margin="4,0,0,0" />
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="4" Background="{DynamicResource SurfaceBrush}" Margin="0,4,0,4"
+                Padding="8,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding WinSxSInfo}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Top" />
+                <Button Grid.Column="1" Content="复制 DISM 清理命令" Command="{Binding CopyDismCommand}"
+                        Padding="10,4" Margin="8,0,0,0" />
+                <Button Grid.Column="2" Content="打开磁盘清理…" Command="{Binding OpenDiskCleanupCommand}"
+                        Padding="10,4" Margin="4,0,0,0" />
+            </Grid>
+        </Border>
+        <TextBlock DockPanel.Dock="Top" Margin="0,2,0,6"
+                   Text="提示：可用空间很少但目录占用对不上时，多为“系统还原”卷影副本占用，可用上方磁盘清理→清理系统文件→勾选“更早的还原点”释放。"
+                   Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+
         <!-- 可清理项表格 -->
         <DataGrid x:Name="Grid"
                   AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"

@@ -1,0 +1,25 @@
+<Window x:Class="FC.Views.DeltaWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FC - 增量对比（与上次扫描）" Height="560" Width="760"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Text="{Binding StatusText}"
+                   Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+        <DataGrid x:Name="Grid"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  ItemsSource="{Binding Rows}" SelectionMode="Single"
+                  Sorting="Grid_Sorting">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="目录" Binding="{Binding Path}" Width="2.2*" />
+                <DataGridTextColumn Header="上次" Binding="{Binding OldText}" Width="90" />
+                <DataGridTextColumn Header="现在" Binding="{Binding NewText}" Width="90" />
+                <DataGridTextColumn Header="变化" Binding="{Binding DeltaText}" Width="100" />
+                <DataGridTextColumn Header="标记" Binding="{Binding MarkText}" Width="60" />
+            </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}"
+                   Text="按变化量降序排列。此窗口会在每次打开时把当前扫描存为新基准（无需单独操作）。"
+                   TextWrapping="Wrap" />
+    </DockPanel>
+</Window>

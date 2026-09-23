@@ -84,6 +84,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Views\DeltaWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Controls\TreeListView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -110,6 +114,9 @@
     </Compile>
     <Compile Include="Views\CleanupWindow.xaml.cs">
       <DependentUpon>CleanupWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\DeltaWindow.xaml.cs">
+      <DependentUpon>DeltaWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Controls\TreeListView.xaml.cs">
       <DependentUpon>TreeListView.xaml</DependentUpon>
@@ -143,6 +150,9 @@
 <Compile Include="Services\ScanCache.cs" />
     <Compile Include="Services\SkipList.cs" />
     <Compile Include="Services\CleanupService.cs" />
+    <Compile Include="Services\SystemAudit.cs" />
+    <Compile Include="Services\ScanSnapshot.cs" />
+    <Compile Include="Services\SnapshotDiff.cs" />
     <Compile Include="Services\ScanResult.cs" />
     <Compile Include="Services\SystemIcons.cs" />
     <Compile Include="Services\TreeVerifier.cs" />
@@ -154,6 +164,7 @@
     <Compile Include="ViewModels\LargeFilesViewModel.cs" />
     <Compile Include="ViewModels\TypeStatsViewModel.cs" />
     <Compile Include="ViewModels\CleanupViewModel.cs" />
+    <Compile Include="ViewModels\DeltaViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\NodeRegistry.cs" />
     <Compile Include="ViewModels\RelayCommand.cs" />

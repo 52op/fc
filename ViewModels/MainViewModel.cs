@@ -64,6 +64,7 @@ namespace FC.ViewModels
             OpenCleanupCommand = new RelayCommand(OpenCleanup, () => !_isScanning);
             ShowLargeFilesCommand = new RelayCommand(ShowLargeFiles, () => !_isScanning);
             ShowTypeStatsCommand = new RelayCommand(ShowTypeStats, () => !_isScanning);
+            ShowDeltaCommand = new RelayCommand(ShowDelta, () => !_isScanning);
 
             // 扫描期每行进度条刷新（250ms 节流，避免每事件全量刷新）
             _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -268,6 +269,8 @@ namespace FC.ViewModels
 
         public RelayCommand ShowTypeStatsCommand { get; private set; }
 
+        public RelayCommand ShowDeltaCommand { get; private set; }
+
         /// <summary>最近一次完整扫描的结果（大文件/类型统计数据源）</summary>
         public ScanResult LastResult { get; private set; }
 
@@ -403,6 +406,7 @@ namespace FC.ViewModels
                 var progress = new Progress<ScanProgress>(OnScanProgress);
                 var result = await _services.Scanner.ScanAsync(target, progress, ct);
                 LastResult = result;
+                SaveDeltaBase(result);
 
                 _progressTimer.Stop();
                 TreeNodeViewModel.SizesComplete = true;
@@ -726,6 +730,37 @@ namespace FC.ViewModels
             win.ShowDialog();
         }
 
+        /// <summary>增量对比窗口（对比最近两次扫描的快照）。</summary>
+        private void ShowDelta()
+        {
+            if (LastResult == null || LastResult.RootNode == null)
+            {
+                _services.Dialogs.ShowError("还没有数据", "请先扫描一个盘符/目录，再查看“增量对比”。");
+                return;
+            }
+            var vm = new DeltaViewModel(LastResult.RootNode);
+            var win = new DeltaWindow(vm);
+            win.Owner = Application.Current != null ? Application.Current.MainWindow : null;
+            win.ShowDialog();
+        }
+
+        /// <summary>扫描完成后保存增量基准快照（后台写文件，不阻塞 UI）。</summary>
+        private static void SaveDeltaBase(ScanResult result)
+        {
+            try
+            {
+                if (result == null || result.RootNode == null)
+                {
+                    return;
+                }
+                string file = SnapshotDiff.SnapshotFilePath(result.RootNode.FullPath);
+                Task.Run(() => ScanSnapshot.Save(file, ScanSnapshot.Capture(result.RootNode)));
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         private void RaiseCommands()
         {
             ScanCommand.RaiseCanExecuteChanged();
@@ -735,6 +770,7 @@ namespace FC.ViewModels
             OpenCleanupCommand.RaiseCanExecuteChanged();
             ShowLargeFilesCommand.RaiseCanExecuteChanged();
             ShowTypeStatsCommand.RaiseCanExecuteChanged();
+            ShowDeltaCommand.RaiseCanExecuteChanged();
         }
     }
 }
