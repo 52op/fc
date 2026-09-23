@@ -16,3 +16,6 @@ obj/
 tests/*.exe
 tests/FC.exe
 tests/FC.pdb
+
+## 发布打包产物
+dist/
