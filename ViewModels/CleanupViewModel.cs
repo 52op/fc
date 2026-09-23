@@ -22,6 +22,11 @@ namespace FC.ViewModels
         private string _systemFilesText;
         private string _winSxSInfo;
         private bool _winSxSDone;
+        private bool _cleaning;
+        private string _cleaningTitle;
+        private int _cleaningStep;
+        private int _cleaningTotal;
+        private bool _keepStatusAfterRefresh;
 
         public CleanupViewModel(AppServices services)
         {
@@ -79,6 +84,25 @@ namespace FC.ViewModels
                     CancelCommand.RaiseCanExecuteChanged();
                 }
             }
+        }
+
+        /// <summary>是否正在清理（驱动不确定进度条与按钮状态）。</summary>
+        public bool IsCleaning
+        {
+            get { return _cleaning; }
+            private set
+            {
+                if (Set(ref _cleaning, value))
+                {
+                    OnPropertyChanged("CleanButtonText");
+                }
+            }
+        }
+
+        /// <summary>清理按钮文案：清理中显示"清理中…"。</summary>
+        public string CleanButtonText
+        {
+            get { return _cleaning ? "清理中…" : "清理所选"; }
         }
 
         /// <summary>所选项目前估算的可释放空间（-1 = 尚未算完）。</summary>
@@ -237,8 +261,12 @@ namespace FC.ViewModels
                             total += i.Bytes;
                         }
                     }
-                    StatusText = string.Format("可清理项共 {0} 项，预计最多可释放 {1}。勾选后点“清理所选”。",
-                        snapshot.Count(i => i.Bytes >= 0), FC.Converters.SizeText.Format(total));
+                    // 清理刚完成时不覆盖"清理完成"提示，只刷新占用数值
+                    if (!_keepStatusAfterRefresh)
+                    {
+                        StatusText = string.Format("可清理项共 {0} 项，预计最多可释放 {1}。勾选后点“清理所选”。",
+                            snapshot.Count(i => i.Bytes >= 0), FC.Converters.SizeText.Format(total));
+                    }
                     SelectedBytes = snapshot.Where(i => i.Selected && i.Bytes > 0).Sum(i => i.Bytes);
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
@@ -297,7 +325,13 @@ namespace FC.ViewModels
             }
 
             IsBusy = true;
+            IsCleaning = true;
+            _cleaningTotal = selected.Count;
+            _cleaningStep = 0;
+            _cleaningTitle = null;
+            _keepStatusAfterRefresh = false;
             Logs.Clear();
+            StatusText = string.Format("正在清理… 0/{0}", _cleaningTotal);
             AppendLog("开始清理…");
             if (_cts != null)
             {
@@ -310,7 +344,7 @@ namespace FC.ViewModels
 
             try
             {
-                var progress = new Progress<string>(AppendLog);
+                var progress = new Progress<string>(OnCleanProgress);
                 CleanupOutcome outcome = await Task.Run(
                     () => CleanupService.Clean(selected, progress, ct), ct);
 
@@ -326,8 +360,10 @@ namespace FC.ViewModels
                 {
                     AppendLog("已清理：" + string.Join("、", outcome.CleanedTitles));
                 }
-                StatusText = string.Format("清理完成：释放约 {0}。",
-                    FC.Converters.SizeText.Format(outcome.FreedBytes));
+                StatusText = outcome.FailedPaths.Count > 0
+                    ? string.Format("清理完成：释放约 {0}，{1} 项未能删除（见下方日志）。",
+                        FC.Converters.SizeText.Format(outcome.FreedBytes), outcome.FailedPaths.Distinct().Count())
+                    : string.Format("清理完成：释放约 {0}。", FC.Converters.SizeText.Format(outcome.FreedBytes));
 
                 if (outcome.FailedPaths.Count > 0)
                 {
@@ -340,7 +376,8 @@ namespace FC.ViewModels
                         string.Join("\n", outcome.FailedPaths.Distinct().Take(40)));
                 }
 
-                // 清理后刷新占用显示
+                // 清理后刷新占用显示（但不覆盖上面的"清理完成"提示）
+                _keepStatusAfterRefresh = true;
                 BeginSizeRefresh();
             }
             catch (OperationCanceledException)
@@ -356,8 +393,66 @@ namespace FC.ViewModels
             }
             finally
             {
+                IsCleaning = false;
                 IsBusy = false;
             }
+        }
+
+        /// <summary>清理过程中解析日志行，实时更新"正在清理 x/y：项目名"提示。</summary>
+        private void OnCleanProgress(string line)
+        {
+            string title;
+            bool done;
+            if (TryParseCleanProgress(line, out title, out done))
+            {
+                if (done)
+                {
+                    _cleaningStep++;
+                }
+                if (title != null)
+                {
+                    _cleaningTitle = title;
+                }
+                if (_cleaningTitle != null)
+                {
+                    StatusText = string.Format("正在清理… {0}/{1}：{2}", _cleaningStep, _cleaningTotal, _cleaningTitle);
+                }
+                else
+                {
+                    StatusText = string.Format("正在清理… {0}/{1}", _cleaningStep, _cleaningTotal);
+                }
+            }
+            AppendLog(line);
+        }
+
+        internal const string StartPrefix = "=== ";
+        internal const string DonePrefix = "该项清理完成";
+
+        /// <summary>
+        /// 由日志行识别清理进度事件（纯逻辑，便于单测）：
+        /// - "=== 标题 ===" → title=标题, done=false（项开始）
+        /// - "该项清理完成…" → title=null, done=true（项完成）
+        /// 其它行返回 false。
+        /// </summary>
+        public static bool TryParseCleanProgress(string line, out string title, out bool done)
+        {
+            title = null;
+            done = false;
+            if (string.IsNullOrEmpty(line))
+            {
+                return false;
+            }
+            if (line.StartsWith(StartPrefix, StringComparison.Ordinal) && line.EndsWith(" ===", StringComparison.Ordinal))
+            {
+                title = line.Substring(StartPrefix.Length, line.Length - StartPrefix.Length - 4).Trim();
+                return true;
+            }
+            if (line.StartsWith(DonePrefix, StringComparison.Ordinal))
+            {
+                done = true;
+                return true;
+            }
+            return false;
         }
 
         private void AppendLog(string line)

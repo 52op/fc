@@ -10,13 +10,17 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="清理所选" Command="{Binding CleanCommand}" Padding="14,6"
+            <Button Grid.Column="0" Content="{Binding CleanButtonText}" Command="{Binding CleanCommand}" Padding="14,6"
                     FontWeight="SemiBold" />
             <Button Grid.Column="1" Content="刷新大小" Command="{Binding RefreshCommand}" Padding="14,6" Margin="6,0,0,0" />
             <Button Grid.Column="2" Content="取消" Command="{Binding CancelCommand}" Padding="14,6" Margin="6,0,0,0" />
-            <TextBlock Grid.Column="3" Text="{Binding SelectedSummary}" Margin="14,0,0,0"
+            <ProgressBar Grid.Column="3" Width="120" Height="14" IsIndeterminate="True" Margin="10,0,0,0"
+                         VerticalAlignment="Center"
+                         Visibility="{Binding IsCleaning, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock Grid.Column="4" Text="{Binding SelectedSummary}" Margin="14,0,0,0"
                        VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}"
                        TextTrimming="CharacterEllipsis" />
         </Grid>
@@ -72,6 +76,7 @@
                   ItemsSource="{Binding Items}" RowHeight="34">
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="清理" Binding="{Binding Selected, Mode=TwoWay}"
+                                        IsReadOnly="{Binding IsCleaning}"
                                         Width="56" IsThreeState="False" />
                 <DataGridTextColumn Header="项目" Binding="{Binding Title}" Width="1.4*"
                                     IsReadOnly="True" />
