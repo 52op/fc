@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -44,6 +45,7 @@ namespace FC.ViewModels
         private string _filesStatusText = "";
         private string _excludedStatusText = "";
         private bool _quickReuse;
+        private readonly Stopwatch _scanSw = new Stopwatch();
 
         public MainViewModel(AppServices services)
         {
@@ -400,6 +402,7 @@ namespace FC.ViewModels
             _rootNode = null;
             TreeNodeViewModel.SizesComplete = false;
             StatusText = "正在读取目录结构…";
+            _scanSw.Restart();
 
             try
             {
@@ -418,8 +421,9 @@ namespace FC.ViewModels
 
                 FilesStatusText = string.Format("文件 {0}", SizeText.FormatCount(result.TotalFiles));
                 ExcludedStatusText = string.Format("已排除 {0}", SizeText.FormatCount(result.ExcludedCount));
-                StatusText = string.Format("扫描完成：{0} 个目录 / {1} 个文件 / {2}",
-                    result.TotalFolders, SizeText.FormatCount(result.TotalFiles), SizeText.Format(result.TotalBytes));
+                StatusText = string.Format("扫描完成：{0} 个目录 / {1} 个文件 / {2}，耗时 {3}",
+                    result.TotalFolders, SizeText.FormatCount(result.TotalFiles), SizeText.Format(result.TotalBytes),
+                    FormatElapsed(_scanSw.Elapsed));
                 if (result.ReusedCount > 0)
                 {
                     StatusText += string.Format("（复用缓存 {0} 目录）", SizeText.FormatCount(result.ReusedCount));
@@ -432,7 +436,7 @@ namespace FC.ViewModels
                 Roots.Clear();
                 _rootNode = null;
                 LastResult = null;
-                StatusText = "扫描已取消。";
+                StatusText = string.Format("扫描已取消（已用时 {0}）。", FormatElapsed(_scanSw.Elapsed));
             }
             catch (Exception ex)
             {
@@ -459,7 +463,7 @@ namespace FC.ViewModels
                 _rootNode = p.RootReady;
                 SetRoot(p.RootReady);
                 _progressTimer.Start();
-                StatusText = "目录结构已就绪，正在计算大小…";
+                StatusText = string.Format("目录结构已就绪，正在计算大小…（已用时 {0}）", FormatElapsed(_scanSw.Elapsed));
                 ExcludedStatusText = string.Format("已排除 {0}", SizeText.FormatCount(p.ExcludedCount));
             }
             else if (p.EnumeratedNode != null)
@@ -490,8 +494,18 @@ namespace FC.ViewModels
         private void UpdateProgressText(ScanProgress p)
         {
             ExcludedStatusText = string.Format("已排除 {0}", SizeText.FormatCount(p.ExcludedCount));
-            StatusText = string.Format("计算大小中… 已统计 {0} 目录，累计 {1}",
-                p.CompletedFolders, SizeText.Format(p.CompletedBytes));
+            StatusText = string.Format("计算大小中… 已统计 {0} 目录，累计 {1}，已用时 {2}",
+                p.CompletedFolders, SizeText.Format(p.CompletedBytes), FormatElapsed(_scanSw.Elapsed));
+        }
+
+        /// <summary>耗时格式化：不足 60 秒显示"X 秒"，否则"X分Y秒"。</summary>
+        private static string FormatElapsed(TimeSpan ts)
+        {
+            if (ts.TotalMinutes >= 1)
+            {
+                return string.Format("{0:0}分{1:0}秒", Math.Floor(ts.TotalMinutes), ts.Seconds);
+            }
+            return string.Format("{0:0}秒", ts.TotalSeconds);
         }
 
         /// <summary>设置根统计行（树的顶端节点，固定展开显示第一层目录）。</summary>

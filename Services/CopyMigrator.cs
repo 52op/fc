@@ -84,7 +84,7 @@ namespace FC.Services
             return null;
         }
 
-        private static bool IsSubPath(string child, string parent)
+        public static bool IsSubPath(string child, string parent)
         {
             try
             {

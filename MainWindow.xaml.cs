@@ -69,12 +69,46 @@ namespace FC
         private void OnMenuHelp(object sender, RoutedEventArgs e)
         {
             var menu = new ContextMenu();
+
+            var update = new MenuItem { Header = "更新" };
+            var setUrl = new MenuItem { Header = "设置更新地址…" };
+            setUrl.Click += (s, a) => OpenUpdateSettings();
+            var updRules = new MenuItem { Header = "立即更新规则数据" };
+            updRules.Click += (s, a) => UpdateRulesNow();
+            var updApp = new MenuItem { Header = "更新程序自身（预留）", IsEnabled = false };
+            update.Items.Add(setUrl);
+            update.Items.Add(updRules);
+            update.Items.Add(new Separator());
+            update.Items.Add(updApp);
+            menu.Items.Add(update);
+            menu.Items.Add(new Separator());
+
             var about = new MenuItem { Header = "关于 FC" };
             about.Click += (s, a) => MessageBox.Show(
                 "FC - 磁盘目录分析迁移工具\n\n.NET Framework 4.8 / WPF\n\n扫描磁盘 → 右键目录 → 一键迁移（robocopy + 校验 + junction），可随时还原。",
                 "关于 FC", MessageBoxButton.OK, MessageBoxImage.Information);
             menu.Items.Add(about);
             ShowMenu((Button)sender, menu);
+        }
+
+        private void OpenUpdateSettings()
+        {
+            var win = new Views.UpdateSettingsWindow();
+            win.Owner = this;
+            win.ShowDialog();
+        }
+
+        private async void UpdateRulesNow()
+        {
+            try
+            {
+                string msg = await FC.Services.EnvRulesUpdater.UpdateAsync();
+                MessageBox.Show(this, msg, "更新规则数据", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show(this, "更新失败：" + ex.Message, "更新规则数据", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private static void AddCommandItem(ContextMenu menu, string header, ICommand command)

@@ -80,6 +80,11 @@ namespace FC.Services
             MessageBox.Show(GetOwnerWindow(), message, title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
+        public void ShowInfo(string title, string message)
+        {
+            MessageBox.Show(GetOwnerWindow(), message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         public IProgressDialog ShowProgress(string title, string operationLabel)
         {
             var win = new MigrateProgressWindow(title, operationLabel);

@@ -68,6 +68,9 @@
                         <MenuItem Header="打开"
                                   Visibility="{Binding PlacementTarget.DataContext.IsFolder, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
                                   Command="{Binding PlacementTarget.DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <MenuItem Header="通过环境变量迁移"
+                                  Visibility="{Binding PlacementTarget.DataContext.CanMigrateViaEnv, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVisibility}}"
+                                  Command="{Binding PlacementTarget.DataContext.MigrateViaEnvCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" ToolTip="设置环境变量把该软件数据目录重定位到新位置（会先结束相关进程）" />
                         <MenuItem Header="迁移此目录"
                                   Visibility="{Binding PlacementTarget.DataContext.IsFolder, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVisibility}}"
                                   Command="{Binding PlacementTarget.DataContext.MigrateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
@@ -457,6 +460,10 @@
                                 <TextBlock Text="{Binding FileTagText}" Foreground="{DynamicResource SecondaryTextBrush}"
                                            VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11"
                                            Visibility="{Binding FileTagText, Converter={StaticResource NullOrEmptyToVisibility}}" />
+                                <TextBlock Text="{Binding EnvTagText}" Foreground="#43A047"
+                                           VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11"
+                                           ToolTip="{Binding EnvTagTooltip}"
+                                           Visibility="{Binding EnvTagText, Converter={StaticResource NullOrEmptyToVisibility}}" />
                                 <TextBlock Text="{Binding DetailText}" Foreground="{DynamicResource DangerBrush}"
                                            VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11"
                                            ToolTip="{Binding DetailText}" />

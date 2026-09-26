@@ -29,9 +29,15 @@ namespace FC.Services
     /// </summary>
     public class CliRunner
     {
+        /// <summary>
+        /// 异步运行命令行进程。逐行转发 stdout/stderr 到 lineSink（日志/进度用）。
+        /// collectOutput=true 时额外把所有输出行收集进 result.OutputLines；
+        /// 默认 false（不收集），避免 robocopy 几十万行输出占满内存。
+        /// </summary>
         public async Task<CliResult> RunAsync(
             string fileName, string arguments,
-            IProgress<string> lineSink, CancellationToken ct)
+            IProgress<string> lineSink, CancellationToken ct,
+            bool collectOutput = false)
         {
             var psi = new ProcessStartInfo(fileName, arguments)
             {
@@ -62,7 +68,10 @@ namespace FC.Services
                 {
                     return;
                 }
-                queue.Enqueue(e.Data);
+                if (collectOutput)
+                {
+                    queue.Enqueue(e.Data);
+                }
                 try
                 {
                     if (lineSink != null)
@@ -132,10 +141,13 @@ namespace FC.Services
                 result.ExitCode = -1;
             }
 
-            string line;
-            while (queue.TryDequeue(out line))
+            if (collectOutput)
             {
-                result.OutputLines.Add(line);
+                string line;
+                while (queue.TryDequeue(out line))
+                {
+                    result.OutputLines.Add(line);
+                }
             }
 
             process.Dispose();

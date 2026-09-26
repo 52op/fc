@@ -50,6 +50,9 @@ namespace FC.ViewModels
 
             MigrateCommand = new RelayCommand(async () => await MigrateAsync(),
                 () => !_busy && _data != null && _data.IsFolder && !_data.IsReparsePoint);
+            MigrateViaEnvCommand = new RelayCommand(async () => await MigrateViaEnvAsync(),
+                () => !_busy && _data != null && _data.IsFolder && !_data.IsReparsePoint
+                      && EnvRule != null && EnvRule.Kind == RedirectKind.EnvVar);
             RefreshCommand = new RelayCommand(async () => await RefreshAsync(),
                 () => !_busy && _data != null && _data.IsFolder);
             OpenExplorerCommand = new RelayCommand(OpenInExplorer,
@@ -65,6 +68,9 @@ namespace FC.ViewModels
         public RelayCommand MigrateCommand { get; private set; }
 
         public RelayCommand RefreshCommand { get; private set; }
+
+        /// <summary>通过环境变量迁移（仅规则命中且为 EnvVar 类时可用）</summary>
+        public RelayCommand MigrateViaEnvCommand { get; private set; }
 
         public RelayCommand OpenExplorerCommand { get; private set; }
 
@@ -185,6 +191,113 @@ namespace FC.ViewModels
                     return "隐藏/系统文件";
                 }
                 return "";
+            }
+        }
+
+        private EnvVarRule _envRule;
+        private bool _envRuleResolved;
+        private string _migratedDest;
+        private string _recordMigratedDest;
+        private bool _recordMigratedResolved;
+
+        /// <summary>
+        /// 解析"迁移目标"。优先当前会话迁移（_migratedDest）；
+        /// 否则查迁移记录（Environment变量迁移且状态 Active 且 SourcePath 匹配本节点）→ 标注"已迁移"。
+        /// 返回 null = 未迁移过。
+        /// </summary>
+        private string ResolveMigratedDest()
+        {
+            if (!string.IsNullOrEmpty(_migratedDest))
+            {
+                return _migratedDest;
+            }
+            if (!_recordMigratedResolved)
+            {
+                _recordMigratedResolved = true;
+                if (_services != null && _data != null && _data.IsFolder)
+                {
+                    try
+                    {
+                        var records = _services.Records.Load();
+                        foreach (var r in records)
+                        {
+                            if (r.MigrationKind == MigrationKind.EnvVar
+                                && r.Status == MigrationStatus.Active
+                                && !string.IsNullOrEmpty(r.SourcePath)
+                                && PathUtil.EndsWithIgnoreCase(_data.FullPath, r.SourcePath)
+                                && !string.IsNullOrEmpty(r.DestPath))
+                            {
+                                _recordMigratedDest = r.DestPath;
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            return _recordMigratedDest;
+        }
+        private EnvVarRule EnvRule
+        {
+            get
+            {
+                if (!_envRuleResolved)
+                {
+                    _envRuleResolved = true;
+                    if (_data != null && _data.IsFolder)
+                    {
+                        // 只匹配当前目录自身（后缀匹配），不向上归并。
+                        // 这样标注/菜单只出现在规则命中的"软件数据根"那一层，
+                        // 不会细分到里面的插件/子目录（用户明确不需要插件级）。
+                        _envRule = EnvVarRuleSet.Match(_data.FullPath);
+                    }
+                }
+                return _envRule;
+            }
+        }
+
+        /// <summary>是否显示"通过环境变量迁移"菜单项（命中 EnvVar 规则、非联接、未迁移过）。</summary>
+        public bool CanMigrateViaEnv
+        {
+            get
+            {
+                return _data != null && _data.IsFolder && !_data.IsReparsePoint
+                    && string.IsNullOrEmpty(ResolveMigratedDest())
+                    && EnvRule != null && EnvRule.Kind == RedirectKind.EnvVar;
+            }
+        }
+
+        /// <summary>目录行附加标签：已迁移显示"已迁移 → 目标"，否则命中规则时显示软件归属 + 环境变量提示（绿色小字）。</summary>
+        public string EnvTagText
+        {
+            get
+            {
+                if (_data == null || !_data.IsFolder)
+                {
+                    return "";
+                }
+                string dest = ResolveMigratedDest();
+                if (!string.IsNullOrEmpty(dest))
+                {
+                    return "已迁移 → " + dest;
+                }
+                return EnvVarMatcher.BuildTagText(EnvRule);
+            }
+        }
+
+        /// <summary>标注 tooltip（软件名 + 依据）。</summary>
+        public string EnvTagTooltip
+        {
+            get
+            {
+                string dest = ResolveMigratedDest();
+                if (!string.IsNullOrEmpty(dest))
+                {
+                    return "数据已迁移到：" + dest;
+                }
+                return EnvVarMatcher.BuildTooltip(EnvRule);
             }
         }
 
@@ -313,6 +426,9 @@ namespace FC.ViewModels
             OnPropertyChanged("BarWidth");
             OnPropertyChanged("Icon");
             OnPropertyChanged("DetailText");
+            OnPropertyChanged("EnvTagText");
+            OnPropertyChanged("EnvTagTooltip");
+            OnPropertyChanged("CanMigrateViaEnv");
         }
 
         /// <summary>轻量刷新行进度（扫描计时器调用，热路径，只刷和进度/大小相关的属性）</summary>
@@ -750,6 +866,56 @@ namespace FC.ViewModels
             finally
             {
                 _busy = false;
+                RaiseCommands();
+            }
+        }
+
+        /// <summary>通过环境变量迁移（打开操作窗，用户在窗内选新目录/作用域后执行）。</summary>
+        public async Task MigrateViaEnvAsync()
+        {
+            if (_busy || _data == null || !_data.IsFolder)
+            {
+                return;
+            }
+            var rule = EnvRule;
+            if (rule == null || rule.Kind != RedirectKind.EnvVar)
+            {
+                _services.Dialogs.ShowError("无法迁移",
+                    "该目录未命中“通过环境变量迁移”的规则。\n（只能对环境变量可重定位的软件数据目录使用此功能。）");
+                return;
+            }
+            if (JunctionUtil.IsReparsePoint(_data.FullPath))
+            {
+                _services.Dialogs.ShowError("无法迁移", "源目录已是联接（junction），不能再次迁移。");
+                return;
+            }
+
+            var match = new EnvVarMatch(rule, _data.FullPath);
+            var win = new Views.EnvMigrateWindow(_services, match);
+            win.Owner = System.Windows.Application.Current?.MainWindow;
+            win.ShowDialog();
+            // 迁移成功后：标记本节点为"已迁移"，刷新标注
+            if (win.Migrated)
+            {
+                _migratedDest = win.MigratedDestPath;
+                // 数据已搬走。若源位置留了 junction，标记为联接（DetailText 会显示 → 目标）；
+                // 若删除，也置为已迁移态。
+                if (JunctionUtil.IsReparsePoint(_data.FullPath))
+                {
+                    _data.IsReparsePoint = true;
+                    _data.Error = null; // DetailText 走 junction 分支
+                }
+                else
+                {
+                    _data.IsReparsePoint = false;
+                    _data.Error = "已迁移（环境变量）";
+                }
+                NotifyDisplayChanged();
+                RaiseCommands();
+            }
+            else
+            {
+                NotifyDisplayChanged();
                 RaiseCommands();
             }
         }

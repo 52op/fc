@@ -83,14 +83,28 @@ namespace FC.ViewModels
                 return;
             }
 
-            string msg = string.Format(
-                "还原记录：\n源路径（数据将移回）：{0}\n目标路径（数据当前所在）：{1}\n迁移日期：{2:yyyy-MM-dd HH:mm}\n\n执行顺序：\n1) 删除源位置联接\n2) 重建空目录\n3) robocopy 把数据拷回\n4) 校验\n5) 清理目标位置副本\n\n确认还原？",
-                r.SourcePath, r.DestPath, r.MigratedAt);
+            bool isEnv = r.MigrationKind == MigrationKind.EnvVar;
+
+            string msg;
+            if (isEnv)
+            {
+                msg = string.Format(
+                    "还原记录（环境变量迁移）：\n源路径（数据将移回）：{0}\n目标路径（数据当前所在）：{1}\n环境变量：{2}\n迁移日期：{3:yyyy-MM-dd HH:mm}\n\n执行顺序：\n1) 恢复环境变量旧值（或删除）\n2) 删除源位置联接（若存在）\n3) robocopy 把数据拷回\n4) 校验\n5) 清理目标位置副本\n\n确认还原？",
+                    r.SourcePath, r.DestPath, r.EnvVarName ?? "(未知)", r.MigratedAt);
+            }
+            else
+            {
+                msg = string.Format(
+                    "还原记录：\n源路径（数据将移回）：{0}\n目标路径（数据当前所在）：{1}\n迁移日期：{2:yyyy-MM-dd HH:mm}\n\n执行顺序：\n1) 删除源位置联接\n2) 重建空目录\n3) robocopy 把数据拷回\n4) 校验\n5) 清理目标位置副本\n\n确认还原？",
+                    r.SourcePath, r.DestPath, r.MigratedAt);
+            }
 
             if (!_services.Dialogs.Confirm("确认还原", msg))
             {
                 return;
             }
+
+            var envMig = isEnv ? new EnvVarMigrator(_services.Verifier, _services.Records) : null;
 
             try
             {
@@ -100,8 +114,18 @@ namespace FC.ViewModels
 
                     for (int attempt = 0; attempt < 3; attempt++)
                     {
-                        MigrationResult result = await _services.Migrator.RestoreAsync(
-                            r, progress, dlg.Token, dlg.SetProgress);
+                        MigrationResult result;
+                        if (isEnv)
+                        {
+                            var scope = string.Equals(r.EnvVarScope, "Machine", StringComparison.OrdinalIgnoreCase)
+                                ? EnvVarManager.Scope.Machine
+                                : EnvVarManager.Scope.User;
+                            result = await envMig.RestoreAsync(r, r.EnvVarName, scope, r.EnvVarOldValue, progress, dlg.Token);
+                        }
+                        else
+                        {
+                            result = await _services.Migrator.RestoreAsync(r, progress, dlg.Token, dlg.SetProgress);
+                        }
                         dlg.AppendLog(result.Message);
 
                         if (result.Success || result.Cancelled)

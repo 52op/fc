@@ -33,6 +33,10 @@ namespace FC.Themes
         [XmlElement]
         public bool QuickReuse { get; set; }
 
+        /// <summary>环境变量规则数据更新地址（用户在"帮助→更新设置"里填；空=用 App.config 的 RulesUpdateUrl）。</summary>
+        [XmlElement(IsNullable = true)]
+        public string RulesUpdateUrl { get; set; }
+
         public AppSettings()
         {
             IsDarkTheme = false;
@@ -43,6 +47,7 @@ namespace FC.Themes
             ShowFoldersColumn = true;
             ShowPercentColumn = true;
             QuickReuse = false;
+            RulesUpdateUrl = null;
         }
     }
 

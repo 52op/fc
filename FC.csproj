@@ -88,6 +88,14 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Views\EnvMigrateWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\UpdateSettingsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Controls\TreeListView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -117,6 +125,12 @@
     </Compile>
     <Compile Include="Views\DeltaWindow.xaml.cs">
       <DependentUpon>DeltaWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\EnvMigrateWindow.xaml.cs">
+      <DependentUpon>EnvMigrateWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\UpdateSettingsWindow.xaml.cs">
+      <DependentUpon>UpdateSettingsWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Controls\TreeListView.xaml.cs">
       <DependentUpon>TreeListView.xaml</DependentUpon>
@@ -151,6 +165,12 @@
 <Compile Include="Services\ScanCache.cs" />
     <Compile Include="Services\SkipList.cs" />
     <Compile Include="Services\CleanupService.cs" />
+    <Compile Include="Services\EnvVarRule.cs" />
+    <Compile Include="Services\EnvVarManager.cs" />
+    <Compile Include="Services\EnvVarMigrator.cs" />
+    <Compile Include="Services\EnvVarMatcher.cs" />
+    <Compile Include="Services\EnvRulesUpdater.cs" />
+    <Compile Include="ViewModels\EnvMigrateViewModel.cs" />
     <Compile Include="Services\SystemAudit.cs" />
     <Compile Include="Services\ScanSnapshot.cs" />
     <Compile Include="Services\SnapshotDiff.cs" />

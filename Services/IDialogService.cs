@@ -33,6 +33,9 @@ namespace FC.Services
         /// <summary>错误框。</summary>
         void ShowError(string title, string message);
 
+        /// <summary>信息提示框（成功等）。</summary>
+        void ShowInfo(string title, string message);
+
         /// <summary>打开进度对话框（非阻塞）。</summary>
         IProgressDialog ShowProgress(string title, string operationLabel);
     }

@@ -1,0 +1,70 @@
+<Window x:Class="FC.Views.EnvMigrateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FC - 通过环境变量迁移" Height="460" Width="640"
+        WindowStartupLocation="CenterOwner" FontSize="13">
+    <DockPanel Margin="12">
+        <!-- 顶部：规则说明 -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="4" Background="{DynamicResource SurfaceBrush}" Padding="10,8" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock TextWrapping="Wrap">
+                    <Run FontWeight="SemiBold" Text="软件：" /><Run Text="{Binding SoftwareName, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0">
+                    <Run FontWeight="SemiBold" Text="环境变量：" /><Run Text="{Binding EnvVarName, Mode=OneWay}" Foreground="{DynamicResource AccentBrush}" />
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0">
+                    <Run FontWeight="SemiBold" Text="源目录：" /><Run Text="{Binding SourcePath, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}">
+                    <Run Text="可信度：" /><Run Text="{Binding ConfidenceText, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}"
+                           Text="{Binding SourceUrl}" ToolTip="规则依据链接" />
+            </StackPanel>
+        </Border>
+
+        <!-- 作用域 -->
+        <GroupBox DockPanel.Dock="Top" Header="环境变量作用域" Margin="0,0,0,10" Padding="10,6">
+            <StackPanel>
+                <RadioButton x:Name="RadioUser" Content="当前用户（推荐，无需管理员）" IsChecked="True"
+                             Margin="0,2" Click="OnScopeUser" />
+                <RadioButton x:Name="RadioMachine" Content="所有用户（需管理员权限）"
+                             Margin="0,4,0,0" Click="OnScopeMachine" />
+            </StackPanel>
+        </GroupBox>
+
+        <!-- 目标目录 -->
+        <GroupBox DockPanel.Dock="Top" Header="目标目录" Margin="0,0,0,10" Padding="10,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" Text="{Binding TargetDir, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalContentAlignment="Center" Padding="4" />
+                <Button Grid.Column="1" Content="选择目录…" Command="{Binding PickFolderCommand}"
+                        Padding="12,6" Margin="8,0,0,0" />
+            </Grid>
+        </GroupBox>
+
+        <!-- 兜底选项 -->
+        <CheckBox DockPanel.Dock="Top" Content="在源位置保留联接（junction）兜底"
+                  IsChecked="{Binding CreateJunctionFallback}" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top" Text="{Binding JunctionHintText}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource SecondaryTextBrush}" Margin="22,0,0,10" />
+
+        <!-- 按钮 -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="取消" Command="{Binding CancelCommand}" Padding="16,6" Margin="0,0,8,0" />
+            <Button Content="确认迁移" Command="{Binding MigrateCommand}" Padding="16,6" FontWeight="SemiBold" />
+        </StackPanel>
+
+        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                   VerticalAlignment="Bottom">
+            迁移会先结束相关软件进程，复制数据到目标目录，设置环境变量指向新位置，然后清理源目录。
+            若源目录删除失败（被占用），将生成"重启后自动删除"脚本并提示你，不会回滚已迁移的数据。
+        </TextBlock>
+    </DockPanel>
+</Window>

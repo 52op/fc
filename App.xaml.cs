@@ -39,6 +39,9 @@ namespace FC
 
             Services = AppServices.CreateDefault();
 
+            // 启动时静默尝试更新环境变量规则数据（未配置 URL 或失败都无影响）
+            EnvRulesUpdater.TrySilentUpdate();
+
             // 命令行提权重试：--migrate "源" "目标根目录"
             string[] argList = e.Args;
             if (argList != null && argList.Length >= 3 &&

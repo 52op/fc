@@ -7,7 +7,42 @@
 
 $ErrorActionPreference = 'Stop'
 $projDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$msbuild = 'd:\letvar\dev\MVS\18\Community\MSBuild\Current\Bin\MSBuild.exe'
+
+# 定位 MSBuild（不写死路径，换机免改）：
+#   1) vswhere 自动发现已安装的 VS 实例
+#   2) PATH 上的 msbuild
+#   3) 常见安装根目录扫描
+function Find-MsBuild {
+    # 1) vswhere（VS 安装器自带，标准发现方式）
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path $vswhere) {
+        $found = & $vswhere -all -products * -requires Microsoft.Component.MSBuild `
+            -find 'MSBuild\**\Bin\MSBuild.exe' 2>$null | Select-Object -First 1
+        if ($found -and (Test-Path $found)) { return $found }
+    }
+    # 2) PATH
+    $cmd = Get-Command msbuild.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    # 3) 兜底：扫描常见安装根
+    $roots = @(
+        "$env:ProgramFiles\Microsoft Visual Studio",
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio"
+    )
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        $hit = Get-ChildItem $root -Recurse -Filter MSBuild.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\MSBuild\\.*\\Bin\\MSBuild\.exe$' } |
+            Select-Object -First 1
+        if ($hit) { return $hit.FullName }
+    }
+    return $null
+}
+
+$msbuild = Find-MsBuild
+if (-not $msbuild) {
+    throw "找不到 MSBuild.exe。请安装 Visual Studio 或 Build Tools（含 .NET 桌面开发工作负载）。"
+}
+Write-Host "MSBuild: $msbuild"
 
 # 1) Release 构建
 Write-Host "== Release build =="

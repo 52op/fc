@@ -15,6 +15,13 @@ namespace FC.Models
         Error
     }
 
+    /// <summary>迁移方式：Junction=原位置留联接；EnvVar=通过环境变量重定位（源目录已删除）。</summary>
+    public enum MigrationKind
+    {
+        Junction,
+        EnvVar
+    }
+
     /// <summary>
     /// 一条迁移记录。可被 XmlSerializer 序列化到 %APPDATA%\FC\migrations.xml。
     /// 属性全部要有公共 setter 才能序列化。
@@ -50,6 +57,36 @@ namespace FC.Models
 
         [XmlElement]
         public string ErrorMessage { get; set; }
+
+        // ==================== 环境变量迁移扩展（Junction 迁移时保持默认） ====================
+
+        /// <summary>迁移方式。旧记录反序列化默认 Junction。</summary>
+        [XmlElement]
+        public MigrationKind MigrationKind { get; set; }
+
+        /// <summary>环境变量名（仅 EnvVar 方式）。</summary>
+        [XmlElement(IsNullable = true)]
+        public string EnvVarName { get; set; }
+
+        /// <summary>环境变量作用域："User" / "Machine"（仅 EnvVar 方式）。</summary>
+        [XmlElement(IsNullable = true)]
+        public string EnvVarScope { get; set; }
+
+        /// <summary>迁移前的环境变量旧值（还原时恢复；空=原不存在，还原时删除）。</summary>
+        [XmlElement(IsNullable = true)]
+        public string EnvVarOldValue { get; set; }
+
+        /// <summary>迁移后写入的环境变量新值（记录备查）。</summary>
+        [XmlElement(IsNullable = true)]
+        public string EnvVarNewValue { get; set; }
+
+        /// <summary>迁移时是否在源位置保留了 junction 兜底。</summary>
+        [XmlElement]
+        public bool JunctionFallback { get; set; }
+
+        /// <summary>软件显示名（仅 EnvVar 方式，来自规则表）。</summary>
+        [XmlElement(IsNullable = true)]
+        public string SoftwareName { get; set; }
 
         public MigrationRecord()
         {

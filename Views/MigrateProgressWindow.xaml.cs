@@ -53,14 +53,15 @@ namespace FC.Views
                 return;
             }
             // 里程碑刚设置后的短暂停留（给真实进度一个可读窗口）
-            if ((DateTime.Now - _lastMilestoneAt).TotalMilliseconds < 3000)
+            if ((DateTime.Now - _lastMilestoneAt).TotalMilliseconds < 1500)
             {
                 return;
             }
-            _creepValue += 2.5;
-            if (_creepValue >= 100)
+            // 无真实进度时：缓慢爬升到 90% 后停住（不 0→100 循环跳动），表示"正在工作"
+            _creepValue += 1.5;
+            if (_creepValue >= 90)
             {
-                _creepValue = 0;
+                _creepValue = 90;
             }
             ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = _creepValue;
@@ -69,7 +70,21 @@ namespace FC.Views
 
         private void UpdateValueText()
         {
-            if (ValueText != null)
+            if (ValueText == null)
+            {
+                return;
+            }
+            // 距上次真实里程碑已超过 1.5s（即当前是蠕动爬升、无真实进度）→ 只显示"进行中"，不显示假 %
+            bool creeping = (DateTime.Now - _lastMilestoneAt).TotalMilliseconds >= 1500;
+            if (_done)
+            {
+                ValueText.Text = "100%";
+            }
+            else if (creeping)
+            {
+                ValueText.Text = "进行中…";
+            }
+            else
             {
                 ValueText.Text = ((int)Math.Round(ProgressBar.Value)).ToString() + "%";
             }
