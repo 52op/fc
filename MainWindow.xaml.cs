@@ -66,6 +66,14 @@ namespace FC
             ShowMenu((Button)sender, menu);
         }
 
+        /// <summary>顶部"设置"：打开独立设置窗口（后续其他设置项都加在里面）。</summary>
+        private void OnMenuSettings(object sender, RoutedEventArgs e)
+        {
+            var win = new Views.SettingsWindow(_viewModel);
+            win.Owner = this;
+            win.ShowDialog();
+        }
+
         private void OnMenuHelp(object sender, RoutedEventArgs e)
         {
             var menu = new ContextMenu();

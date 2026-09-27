@@ -196,6 +196,35 @@ namespace FC.Services
             }
             return p;
         }
+
+        /// <summary>ancestor 是否是 child 的祖先或与 child 相同（前缀 + 分隔符边界）。用于多根覆盖判断。</summary>
+        public static bool IsSameOrAncestorPath(string ancestor, string child)
+        {
+            string a = TrimSlash(ancestor);
+            string c = TrimSlash(child);
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(c))
+            {
+                return false;
+            }
+            if (string.Equals(a, c, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            if (c.Length < a.Length
+                || !c.StartsWith(a, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            // 盘根（如 "C:\"）作为前缀即祖先
+            if (a.Length >= 3 && a[1] == ':'
+                && (a.EndsWith(Path.DirectorySeparatorChar.ToString()) || a.EndsWith(Path.AltDirectorySeparatorChar.ToString())))
+            {
+                return true;
+            }
+            // 普通目录：a 之后的下个字符必须是分隔符
+            char next = c[a.Length];
+            return next == Path.DirectorySeparatorChar || next == Path.AltDirectorySeparatorChar;
+        }
     }
 
     /// <summary>

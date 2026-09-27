@@ -45,6 +45,7 @@ namespace FC.ViewModels
         private string _filesStatusText = "";
         private string _excludedStatusText = "";
         private bool _quickReuse;
+        private int _maxRoots = 4;
         private readonly Stopwatch _scanSw = new Stopwatch();
 
         public MainViewModel(AppServices services)
@@ -83,6 +84,7 @@ namespace FC.ViewModels
                 _showFoldersColumn = settings.ShowFoldersColumn;
                 _showPercentColumn = settings.ShowPercentColumn;
                 _quickReuse = settings.QuickReuse;
+                _maxRoots = settings.MaxRoots > 0 ? settings.MaxRoots : 4;
             }
 
             _statusText = "就绪。选择盘符后点“扫描”，或点“选择目录”分析任意文件夹。";
@@ -397,7 +399,7 @@ namespace FC.ViewModels
             ExcludedStatusText = "";
 
             IsScanning = true;
-            Roots.Clear();
+            // 保留已有扫描根（多根并列，旧根折叠）；只清节点登记表（本次扫描重新登记）
             NodeRegistry.Clear();
             _rootNode = null;
             TreeNodeViewModel.SizesComplete = false;
@@ -508,17 +510,71 @@ namespace FC.ViewModels
             return string.Format("{0:0}秒", ts.TotalSeconds);
         }
 
-        /// <summary>设置根统计行（树的顶端节点，固定展开显示第一层目录）。</summary>
+        /// <summary>设置根统计行（多根并列保留）。新扫描目标若是某旧根的祖先/相同 → 替换该旧根；否则新增根。旧根折叠、新根展开。</summary>
         private void SetRoot(DiskNode root)
         {
-            Roots.Clear();
             if (root == null)
             {
                 return;
             }
+            string newPath = root.FullPath;
+            if (string.IsNullOrEmpty(newPath))
+            {
+                return;
+            }
+
+            // 1) 移除被覆盖的旧根：新路径是旧根路径的祖先（或相同）→ 新扫描已覆盖它
+            for (int i = Roots.Count - 1; i >= 0; i--)
+            {
+                string ep = Roots[i].FullPath;
+                if (!string.IsNullOrEmpty(ep) && IsSameOrAncestorPath(newPath, ep))
+                {
+                    Roots.RemoveAt(i);
+                }
+            }
+
+            // 2) 若新路径已是某保留根（重扫同目标）→ 更新该根，不新增
+            for (int i = 0; i < Roots.Count; i++)
+            {
+                if (string.Equals(Roots[i].FullPath, newPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    var nv = new TreeNodeViewModel(root, _services, root.TotalSize);
+                    Roots[i] = nv;
+                    nv.IsExpanded = true;
+                    CollapseOthersExcept(nv);
+                    return;
+                }
+            }
+
+            // 3) 新增根
             var vm = new TreeNodeViewModel(root, _services, root.TotalSize);
             Roots.Add(vm);
-            vm.IsExpanded = true; // 展开根 → 显示第一层目录，更深层默认折叠
+            vm.IsExpanded = true;
+            CollapseOthersExcept(vm);
+
+            // 4) 超上限移除最旧（最旧在最前）
+            while (Roots.Count > _maxRoots)
+            {
+                Roots.RemoveAt(0);
+            }
+        }
+
+        /// <summary>折叠除指定根外的所有根，让当前扫描根突出。</summary>
+        private void CollapseOthersExcept(TreeNodeViewModel keep)
+        {
+            foreach (var r in Roots)
+            {
+                if (r != keep)
+                {
+                    r.IsExpanded = false;
+                }
+            }
+        }
+
+        /// <summary>ancestor 是否是 child 的祖先或与 child 相同（路径前缀 + 分隔符边界）。</summary>
+        private static bool IsSameOrAncestorPath(string ancestor, string child)
+        {
+            return PathUtil.IsSameOrAncestorPath(ancestor, child);
         }
 
         /// <summary>扫描期间每 250ms：刷新已展开行大小/进度条，并对已展开目录做实时从大到小排序。</summary>
@@ -625,9 +681,19 @@ namespace FC.ViewModels
 
         private void SetAllExpanded(bool expanded)
         {
+            // 多根并列：只作用于当前展开的那个根（避免把其他盘也全展开）
             foreach (var r in Roots)
             {
-                SetExpandedRecursive(r, expanded);
+                if (r.IsExpanded)
+                {
+                    SetExpandedRecursive(r, expanded);
+                    return;
+                }
+            }
+            // 兜底：没有展开的根就作用第一个
+            if (Roots.Count > 0)
+            {
+                SetExpandedRecursive(Roots[0], expanded);
             }
         }
 
@@ -802,6 +868,39 @@ namespace FC.ViewModels
             catch (Exception)
             {
             }
+        }
+
+        public void SetMaxRoots(int n)
+        {
+            if (n < 1)
+            {
+                n = 1;
+            }
+            if (_maxRoots == n)
+            {
+                return;
+            }
+            _maxRoots = n;
+            var s = FC.Themes.ThemeManager.CurrentSettings;
+            if (s != null)
+            {
+                s.MaxRoots = n;
+                FC.Themes.ThemeManager.SaveSettings();
+            }
+            // 超出新上限则移除最旧
+            while (Roots.Count > _maxRoots)
+            {
+                Roots.RemoveAt(0);
+            }
+        }
+
+        public int MaxRoots { get { return _maxRoots; } }
+
+        /// <summary>设置窗用：0-based 下拉索引（值 1→索引 0）。</summary>
+        public int MaxRootsIndex
+        {
+            get { return _maxRoots - 1; }
+            set { SetMaxRoots(value + 1); }
         }
 
         private void RaiseCommands()

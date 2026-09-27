@@ -23,6 +23,7 @@
                 <Button Content="文件" Style="{StaticResource MenuBarButton}" Click="OnMenuFile" />
                 <Button Content="扫描" Style="{StaticResource MenuBarButton}" Click="OnMenuScan" />
                 <Button Content="视图" Style="{StaticResource MenuBarButton}" Click="OnMenuView" />
+                <Button Content="设置" Style="{StaticResource MenuBarButton}" Click="OnMenuSettings" />
                 <Button Content="帮助" Style="{StaticResource MenuBarButton}" Click="OnMenuHelp" />
             </StackPanel>
         </Border>

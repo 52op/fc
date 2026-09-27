@@ -37,6 +37,10 @@ namespace FC.Themes
         [XmlElement(IsNullable = true)]
         public string RulesUpdateUrl { get; set; }
 
+        /// <summary>同时保留的扫描根数量上限（多根并列，旧根折叠）。默认 4。</summary>
+        [XmlElement]
+        public int MaxRoots { get; set; }
+
         public AppSettings()
         {
             IsDarkTheme = false;
@@ -48,6 +52,7 @@ namespace FC.Themes
             ShowPercentColumn = true;
             QuickReuse = false;
             RulesUpdateUrl = null;
+            MaxRoots = 4;
         }
     }
 

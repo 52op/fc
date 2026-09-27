@@ -1,0 +1,32 @@
+<Window x:Class="FC.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FC - 设置" Height="420" Width="560"
+        WindowStartupLocation="CenterOwner" FontSize="13"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource PrimaryTextBrush}">
+    <DockPanel Margin="14">
+        <!-- 底部按钮 -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="关闭" Width="90" Padding="0,6" FontWeight="SemiBold" Click="OnClose" />
+        </StackPanel>
+
+        <!-- 设置项列表（后续可继续加 GroupBox/分组） -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <GroupBox Header="多根扫描" Padding="10,8">
+                    <StackPanel>
+                        <TextBlock Text="同时保留的扫描根数量" FontWeight="SemiBold" />
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,3,0,6"
+                                   Text="扫描多个盘符/目录时，旧结果保留为并列的根（折叠显示），最新扫描的根展开。数值越大占用内存越多。" />
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox x:Name="RootsCombo" Width="90" SelectionChanged="OnRootsChanged" />
+                            <TextBlock Text="个（1-8）" VerticalAlignment="Center" Margin="8,0,0,0"
+                                       Foreground="{DynamicResource SecondaryTextBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

@@ -90,7 +90,7 @@ Copy-Item $fcExe (Join-Path $testsDir 'FC.exe') -Force
 
 $tests = @('Test', 'QuickTest', 'LockTest', 'CleanupFeatureTest', 'CleanupPropTest',
            'CleanupProgressTest', 'CleanupLogFormatTest', 'CleanupFastTest', 'StreamSizeTest',
-           'RecycleBinTest', 'SnapshotTest', 'MenuCmdTest', 'EnvVarTest', 'EnvUiTest')
+           'RecycleBinTest', 'SnapshotTest', 'MenuCmdTest', 'EnvVarTest', 'EnvUiTest', 'MultiRootTest')
 
 $failed = @()
 foreach ($t in $tests) {
